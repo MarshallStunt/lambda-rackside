@@ -9,15 +9,16 @@ A side panel for Datacenter Operations. Open a Jira ticket and get a one-glance 
 **Finding your way:** every section has its own colour (a stripe, a tinted header and a chip in the jump bar at the top). Tap a chip to jump to it; the section you're reading is lit up as you scroll. The chips show progress: **✅ Steps 2/5** as you tick steps (✓ when all are done) and **🔁 RMA ✓** once the RMA ticket is created.
 
 ## Quick start
-1. **Load the extension:** `chrome://extensions` → turn on **Developer mode** → **Load unpacked** → select this `lambda-rackside` folder. Pin it and click its icon to open the side panel. Settings opens on first install.
-2. **Get an AI key.** Claude (Anthropic) is recommended; OpenAI (ChatGPT) and Gemini also work. Settings → **Start** → *Getting started* has a ready-to-send request for IT.
+1. **Download it:** the latest version is in the [RackSide folder on Google Drive](https://drive.google.com/drive/folders/1Q8PssE0dSU0UFvriIVnHjL34avM0QjWT) (`lambda-rackside-<version>.zip`). Download it and double-click it to unzip; you get a `lambda-rackside` folder. If you use git, clone this repo instead.
+2. **Load the extension:** `chrome://extensions` → turn on **Developer mode** → **Load unpacked** → select the `lambda-rackside` folder. Pin it and click its icon to open the side panel. Settings opens on first install.
+3. **Get an AI key.** Claude (Anthropic) is recommended; OpenAI (ChatGPT) and Gemini also work. Settings → **Start** → *Getting started* has a ready-to-send request for IT.
    - **Start today without IT: a free Gemini key you make yourself** (2 minutes), until IT gives you a Claude or OpenAI key:
      1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and sign in with your **Lambda Google account** (@lambdal.com or @lambda.ai). Accept the terms if asked.
      2. Click **Create API key** (if asked for a project: *Create API key in new project*), then **Copy**. The key starts with `AIza`.
      3. In Settings click **Use Gemini here** (it selects **Gemini Flash-Lite (latest)**, fast and with the free tier's highest limits), paste the key in *Gemini API key*, **Save**, then **Test AI**.
    - ⚠️ On the free tier Google may use what you send to improve its products, and there's a daily limit: turn on **Privacy mode** (Settings → Privacy) while you use it. When your Claude or OpenAI key arrives, switch the provider, paste it, and delete the Gemini key at aistudio.google.com/apikey. If AI Studio says it isn't available for your account, it's turned off for Lambda accounts: use the IT request. Don't use a personal Google account for work tickets.
-3. **Install the helper** (ping, BMC). Settings → *Getting started* → **Copy** the setup command and run it: on a Mac in **Terminal**, on Windows in **PowerShell**. It asks before installing anything.
-4. **Paste the key**, click **Load models**, then **Save**. Open any Jira ticket.
+4. **Install the helper** (ping, BMC). Settings → *Getting started* → **Copy** the setup command and run it: on a Mac in **Terminal**, on Windows in **PowerShell**. It asks before installing anything.
+5. **Paste the key**, click **Load models**, then **Save**. Open any Jira ticket.
 
 **Updates:** Chrome checks the private GitHub repo every 2 hours, and the panel checks on every Analyze / Re-analyze, with your GitHub login (you need access to the repo). A new version shows a red **NEW** badge on the toolbar icon, one notification (click it to open Settings → Updates), and a 🆕 banner at the top of the panel; **Later** hides the banner and badge until the next version. **⬇️ Update now** downloads it with your GitHub login, the helper puts it in your lambda-rackside folder (`git pull` if it's a git copy, otherwise the new files over the old ones) and updates itself, and the extension reloads. *Update by hand* has a command that does the same from Terminal/PowerShell (or a ZIP link). Settings → Start → **Check for updates** checks right away. Needs helper 1.6.0 or later: older helpers update by hand once. The footer of the panel shows the version.
 
