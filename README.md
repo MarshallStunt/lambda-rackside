@@ -11,7 +11,7 @@ A side panel for Datacenter Operations. Open a Jira ticket and get a one-glance 
 ## Quick start
 1. **Download it:** the latest version is in the [RackSide folder on Google Drive](https://drive.google.com/drive/folders/1Q8PssE0dSU0UFvriIVnHjL34avM0QjWT) (`lambda-rackside-<version>.zip`). Download it and double-click it to unzip; you get a `lambda-rackside` folder. If you use git, clone this repo instead.
 2. **Load the extension:** `chrome://extensions` → turn on **Developer mode** → **Load unpacked** → select the `lambda-rackside` folder. Pin it and click its icon to open the side panel. Settings opens on first install.
-3. **Get an AI key** (optional: without one, or with the **AI** switch at the top of the panel off, you get a basic brief; see *Working without AI*). Claude (Anthropic) is recommended; OpenAI (ChatGPT) and Gemini also work. Settings → **Start** → *Getting started* has a ready-to-send request for IT.
+3. **Get an AI key** (optional: without one, or with Settings → *Use AI* off, you get a basic brief; see *Working without AI*). Claude (Anthropic) is recommended; OpenAI (ChatGPT) and Gemini also work. Settings → **Start** → *Getting started* has a ready-to-send request for IT.
    - **Start today without IT: a free Gemini key you make yourself** (2 minutes), until IT gives you a Claude or OpenAI key:
      1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and sign in with your **Lambda Google account** (@lambdal.com or @lambda.ai). Accept the terms if asked.
      2. Click **Create API key** (if asked for a project: *Create API key in new project*), then **Copy**. The key starts with `AIza`.
@@ -100,6 +100,8 @@ A part you pick yourself is never replaced; if NetBox or the history disagree, y
 **Checks before anything is sent:** both serials and a part number are required; the same S/N can't be old and new; a swap already on the existing RMA is refused. Everything runs in your Jira tab with your login, and fields are found by name. If linking fails, it tells you the RMA ticket was created and to link it in Jira.
 
 ### NetBox
+**NetBox is the source of truth.** The server is looked up by both its **hostname** and its **chassis S/N** from the ticket (a field or text labelled chassis / system / server / node S/N, then any S/N). Server & location shows NetBox's record first (name, S/N, site, rack, RU, BMC IP) and what matched ("hostname + chassis S/N"); if the hostname and the S/N point to two different servers, or the ticket's site/rack/RU/S/N differ from NetBox, it says so. The RMA uses NetBox's hostname.
+
 Status, model, site/rack/RU, serial, Lambda SKU, asset tag, tenant/cluster, IPs, interfaces & cabling, **📝 Journal** (work history; lines with passwords are removed), **🧩 Modules** (mostly switch transceivers; NetBox doesn't record GPUs/DIMMs in servers) and the last **Podcrawler** activity (**Open** copies the hostname). Read-only.
 
 ### Ask the AI
@@ -139,7 +141,7 @@ Browsers can't ping or talk to BMCs, so a small Python helper does it through Ch
 - **BMC web address**: `https://{ip}` by default; change it if your BMCs use http or a port.
 
 ## Working without AI
-The **AI** switch at the top of the panel (also Settings → Start → *Use AI*) turns the AI off. With it off, or with no key yet, nothing is sent to an AI and the brief is built from the ticket's own text:
+Settings → Start → **Use AI** turns the AI off. With it off, or with no key yet, nothing is sent to an AI and the brief is built from the ticket's own text:
 - **Server** names (Lambda-style hostnames like `ord01-cl01-hgx-0084`), serials, IPs with their role (BMC, host…), site, rack and RU.
 - **Power-down** by keywords: the newest line that forbids it ("do not power down", "customer workload running") or allows it ("ok to power down", "node is drained", "downtime approved") decides, and that line is shown. Nothing found means *Confirm before powering down*.
 - The **job type** (GPU, DIMM, PSU, fan, NIC, drive…), the summary as the request, and the last comments as history.

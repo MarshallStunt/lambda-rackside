@@ -297,9 +297,14 @@ function renderNetbox(box, state, actions) {
   }
 
   const warn = document.getElementById("nbWarn");
-  const mismatches = nb.devices.flatMap((d) => d.mismatches);
-  if (warn) warn.replaceChildren(...(mismatches.length ? [h("div", { class: "nb-warn" },
-    h("b", {}, "⚠️ Ticket and NetBox disagree"), h("ul", {}, mismatches.map((m) => h("li", {}, m))))] : []));
+  const mismatches = [...new Set(nb.devices.flatMap((d) => d.mismatches))];
+  // NetBox is the source of truth: its record goes first in Server & location, with how it was matched.
+  const truth = nb.devices.map((d) => h("div", { class: "nb-truth" },
+    h("b", {}, "🗄️ NetBox:"), copyChip(d.name || "?"),
+    h("span", {}, [d.serial && `S/N ${d.serial}`, d.site, d.rack && `rack ${d.rack}`, d.position != null && `RU ${d.position}`, d.oobIp && `BMC ${d.oobIp}`].filter(Boolean).join(" · ")),
+    d.matchedBy?.length ? h("span", { class: "muted" }, `matched by ${d.matchedBy.join(" + ")}`) : null));
+  if (warn) warn.replaceChildren(...truth, ...(mismatches.length ? [h("div", { class: "nb-warn" },
+    h("b", {}, "⚠️ Ticket and NetBox disagree (NetBox is right unless the server was moved)"), h("ul", {}, mismatches.map((m) => h("li", {}, m))))] : []));
 
   for (const d of nb.devices) {
     const statusCls = NB_STATUS_CLASS[d.status] || "info";

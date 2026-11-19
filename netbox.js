@@ -36,6 +36,15 @@ function findSerialsInText(text) {
   return [...out].slice(0, 5);
 }
 
+// The server's own serial: labelled chassis / system / server / node / board S/N (Jira fields come through as
+// "Chassis Serial Number: …"). Part serials (old/new GPU S/N) are not this, so they're kept apart.
+function findChassisSerialsInText(text) {
+  const out = new Set();
+  const re = /\b(?:chassis|system|server|node|host|unit|baseboard|mother ?board|mb)\s*(?:S\/?N|serial(?:\s*(?:number|no\.?|#))?)\s*[:#=]?\s*([A-Z0-9][A-Z0-9-]{5,30})/gi;
+  for (const m of String(text || "").matchAll(re)) out.add(m[1].toUpperCase());
+  return [...out].slice(0, 3);
+}
+
 const nbNorm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const nbDigits = (s) => (String(s || "").match(/\d+/g) || []).join("");
 
@@ -50,7 +59,35 @@ function looseEq(a, b) {
 
 // Search NetBox for each hostname (exact match), then serials. Verifies names client-side because
 // NetBox silently ignores unknown filters and would otherwise return unrelated devices.
+// Both are searched (NetBox is the source of truth): each device says whether its hostname, its chassis S/N or both
+// matched, and a hostname and S/N that point to two different devices is reported.
 async function netboxFindDevices(settings, names, serials) {
+  const byName = await netboxFindByName(settings, names);
+  const bySerial = new Map();
+  for (const sn of serials.slice(0, 4)) {
+    const r = await nbGet(settings, `/api/dcim/devices/?serial=${encodeURIComponent(sn)}&limit=5`);
+    const hit = (r.results || []).find((d) => nbNorm(d.serial) === nbNorm(sn));
+    if (hit) bySerial.set(hit.id, { device: hit, sn });
+  }
+  const all = new Map();
+  for (const [id, d] of byName) all.set(id, { device: d, how: ["hostname"] });
+  for (const [id, { device, sn }] of bySerial) {
+    const e = all.get(id) || { device, how: [] };
+    e.how.push("chassis S/N");
+    e.sn = sn;
+    all.set(id, e);
+  }
+  const list = [...all.values()].sort((a, b) => b.how.length - a.how.length);
+  const conflicts = [];
+  if (byName.size && bySerial.size && ![...byName.keys()].some((id) => bySerial.has(id))) {
+    for (const { device, sn } of bySerial.values()) {
+      conflicts.push(`Chassis S/N ${sn} belongs to ${device.name || `device ${device.id}`} in NetBox, not to ${[...byName.values()].map((d) => d.name).join(", ")}: check which server this ticket is about`);
+    }
+  }
+  return list.map((e) => Object.assign(e.device, { _how: e.how, _conflicts: conflicts }));
+}
+
+async function netboxFindByName(settings, names) {
   const found = new Map();
   for (const name of names.slice(0, 3)) {
     const want = name.toLowerCase();
@@ -62,14 +99,7 @@ async function netboxFindDevices(settings, names, serials) {
     }
     if (hit) found.set(hit.id, hit);
   }
-  if (!found.size) {
-    for (const sn of serials.slice(0, 3)) {
-      const r = await nbGet(settings, `/api/dcim/devices/?serial=${encodeURIComponent(sn)}&limit=5`);
-      const hit = (r.results || []).find((d) => nbNorm(d.serial) === nbNorm(sn));
-      if (hit) found.set(hit.id, hit);
-    }
-  }
-  return [...found.values()];
+  return found;
 }
 
 const stripPrefix = (ip) => String(ip || "").split("/")[0];
@@ -173,7 +203,8 @@ function fasttrackInventory(x) {
 
 async function netboxLookup(settings, brief, issueText) {
   const names = brief.server_names.filter((n) => !isIP(n) && !/^s\/?n\b/i.test(n) && /[a-z]/i.test(n) && n.length <= 64);
-  const serials = [...new Set([...findSerialsInText(issueText), ...brief.server_names.filter((n) => /^s\/?n\b/i.test(n)).map((n) => n.replace(/^s\/?n\s*[:#]?\s*/i, "").toUpperCase())])];
+  const chassis = findChassisSerialsInText(issueText);
+  const serials = [...new Set([...chassis, ...findSerialsInText(issueText), ...brief.server_names.filter((n) => /^s\/?n\b/i.test(n)).map((n) => n.replace(/^s\/?n\s*[:#]?\s*/i, "").toUpperCase())])];
   if (!names.length && !serials.length) return { ok: false, error: "No hostname or serial in the ticket to look up.", empty: true };
   try {
     const devices = await netboxFindDevices(settings, names, serials);
@@ -221,7 +252,8 @@ async function netboxLookup(settings, brief, issueText) {
           bay: m.module_bay?.name || "", model: m.module_type?.model || "", partNumber: m.module_type?.part_number || "",
           vendor: m.module_type?.manufacturer?.name || "", status: m.status?.value || ""
         })),
-        mismatches: netboxMismatches(d, brief, serials)
+        matchedBy: d._how || [],
+        mismatches: [...(d._conflicts || []), ...netboxMismatches(d, brief, chassis.length ? chassis : serials)]
       };
     }));
     return { ok: true, devices: detailed, at: Date.now() };

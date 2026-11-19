@@ -878,7 +878,7 @@ async function setupRma(key, entry) {
         ...(partsView?.key === key ? (partsView.state.servers || []).map((p) => `${p.vendor} ${p.name} ${p.desc}`) : []),
         entry.brief.request_summary, String(entry.issueText || "").slice(0, 4000)].join(" ");
       // The server's hostname for the summary ("ord01-cl01-hgx-0084 - replace …"): a server name, not a serial.
-      state.form.hostname = entry.brief.server_names.find((n) => /[a-z].*[-.].*\d|\d.*[-.].*[a-z]/i.test(n) && /-/.test(n)) || "";
+      state.form.hostname = (lastResult?.key === key && lastResult.netbox?.ok && lastResult.netbox.devices[0].name) || entry.brief.server_names.find((n) => /[a-z].*[-.].*\d|\d.*[-.].*[a-z]/i.test(n) && /-/.test(n)) || "";
       state.warnings = [];
       // The swaps the ticket names (old and new S/N from the same comment); with an RMA already open, the first one it doesn't have yet.
       const swaps = ticketSwaps(entry.issueText);
@@ -1346,25 +1346,10 @@ $("chatSend").replaceChildren(icon("send", 15));
 
 $("analyzeBtn").addEventListener("click", () => analyze(true));
 
-// AI on/off switch. Off: the brief comes from patterns in the ticket, and NetBox, BMC, ping and parts still work.
-async function drawAiToggle() {
-  const s = await getSettings(), on = s.aiEnabled !== false;
-  const b = $("aiToggle");
-  b.setAttribute("aria-checked", String(on));
-  b.replaceChildren(h("span", { class: "knob" }), "AI");
-  b.title = on
-    ? (missingConfig(s) ? "AI is on but has no key yet (Settings), so you get the basic brief. Click to turn the AI off." : "AI is on: it writes the brief and answers chat. Click to turn it off.")
-    : "AI is off: the brief comes from the ticket's text (server, IPs, rack, power-down keywords). NetBox, BMC, ping and parts still work. Click to turn the AI on.";
-}
-$("aiToggle").addEventListener("click", async () => {
-  const s = await getSettings();
-  await chrome.storage.local.set({ aiEnabled: s.aiEnabled === false });
-  await drawAiToggle();
-  if (current.key) analyze(true);
-  else refresh();
+// Settings → Use AI changed: show the open ticket again the new way (AI brief, or the basic one).
+chrome.storage.onChanged.addListener((ch, area) => {
+  if (area === "local" && ch.aiEnabled && ch.aiEnabled.oldValue !== ch.aiEnabled.newValue && current.key) analyze(true);
 });
-chrome.storage.onChanged.addListener((ch, area) => { if (area === "local" && ch.aiEnabled) drawAiToggle(); });
-drawAiToggle();
 $("settingsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
 // Copy as Jira comment (button at the end of the brief).
 async function copyComment() {
