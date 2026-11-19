@@ -289,7 +289,7 @@ function renderCatalog(box, state, actions) {
   if (state.error) return box.appendChild(h("div", { class: "ping-msg bad" }, state.error));
 
   box.appendChild(h("div", { class: "label part-head" }, "Lambda catalog",
-    h("button", { class: "mini", title: "Ask the AI which catalog part to swap, based on the ticket and the BMC", onclick: actions.onAsk }, "✨ Ask AI which part"),
+    actions.onAsk && h("button", { class: "mini", title: "Ask the AI which catalog part to swap, based on the ticket and the BMC", onclick: actions.onAsk }, "✨ Ask AI which part"),
     h("button", { class: "mini part-open-cat", title: "Open the Lambda parts catalog to look up other part numbers", onclick: () => actions.openRow(null) }, "📒 Open catalog ", icon("external", 10))));
   // The server itself, from NetBox's Lambda SKU (legacy_LPN): tells which GPU generation etc. it has.
   for (const s of state.servers || []) {

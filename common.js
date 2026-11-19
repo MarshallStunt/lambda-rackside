@@ -15,6 +15,7 @@ const LOCAL_PRESETS = {
 };
 
 const DEFAULTS = {
+  aiEnabled: true,      // off: the brief comes from patterns in the ticket (no AI, no key needed); NetBox, BMC, ping and parts still work
   provider: "anthropic",
   anthropicKey: "",
   openaiKey: "",
@@ -102,6 +103,9 @@ function missingConfig(s) {
     default:          return "Choose an AI provider in Settings (⚙).";
   }
 }
+
+// The AI is used only when it is switched on and set up.
+const aiActive = (s) => s.aiEnabled !== false && !missingConfig(s);
 
 // Keyboard shortcuts as shown in hints (Mac vs Windows/Linux).
 const IS_MAC = /mac/i.test(navigator.userAgentData?.platform || navigator.platform || "");

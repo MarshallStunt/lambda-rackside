@@ -11,7 +11,7 @@ A side panel for Datacenter Operations. Open a Jira ticket and get a one-glance 
 ## Quick start
 1. **Download it:** the latest version is in the [RackSide folder on Google Drive](https://drive.google.com/drive/folders/1Q8PssE0dSU0UFvriIVnHjL34avM0QjWT) (`lambda-rackside-<version>.zip`). Download it and double-click it to unzip; you get a `lambda-rackside` folder. If you use git, clone this repo instead.
 2. **Load the extension:** `chrome://extensions` → turn on **Developer mode** → **Load unpacked** → select the `lambda-rackside` folder. Pin it and click its icon to open the side panel. Settings opens on first install.
-3. **Get an AI key.** Claude (Anthropic) is recommended; OpenAI (ChatGPT) and Gemini also work. Settings → **Start** → *Getting started* has a ready-to-send request for IT.
+3. **Get an AI key** (optional: without one, or with the **AI** switch at the top of the panel off, you get a basic brief; see *Working without AI*). Claude (Anthropic) is recommended; OpenAI (ChatGPT) and Gemini also work. Settings → **Start** → *Getting started* has a ready-to-send request for IT.
    - **Start today without IT: a free Gemini key you make yourself** (2 minutes), until IT gives you a Claude or OpenAI key:
      1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and sign in with your **Lambda Google account** (@lambdal.com or @lambda.ai). Accept the terms if asked.
      2. Click **Create API key** (if asked for a project: *Create API key in new project*), then **Copy**. The key starts with `AIza`.
@@ -137,6 +137,15 @@ Browsers can't ping or talk to BMCs, so a small Python helper does it through Ch
 - **Parts catalog**: by default the Lambda `catalog` Google Sheet (Lambda part number, description, manufacturer P/N or legacy SKU), opened with your Google login and read once a day. Paste another link in Settings → Servers & BMC (a Google Sheet or an Excel file in Drive); clear the field to go back to the default. **Test catalog** checks it. "(CAPEX)" copies, test items and licences/services (4xx-) are skipped; parts marked "EOL, USE … INSTEAD" are tagged *EOL* with the replacement P/N.
 - **Jira**: read through Jira's REST API in your tab with your login (no token). Works on `*.atlassian.net`; add self-hosted hosts in Settings. Optional exact field names for server and location.
 - **BMC web address**: `https://{ip}` by default; change it if your BMCs use http or a port.
+
+## Working without AI
+The **AI** switch at the top of the panel (also Settings → Start → *Use AI*) turns the AI off. With it off, or with no key yet, nothing is sent to an AI and the brief is built from the ticket's own text:
+- **Server** names (Lambda-style hostnames like `ord01-cl01-hgx-0084`), serials, IPs with their role (BMC, host…), site, rack and RU.
+- **Power-down** by keywords: the newest line that forbids it ("do not power down", "customer workload running") or allows it ("ok to power down", "node is drained", "downtime approved") decides, and that line is shown. Nothing found means *Confirm before powering down*.
+- The **job type** (GPU, DIMM, PSU, fan, NIC, drive…), the summary as the request, and the last comments as history.
+- **NetBox, ping, BMC health/console/power, parts, stock and the RMA form work as usual.** No chat, no "Ask AI which part", and the RMA form isn't pre-filled by the AI.
+
+If the AI is on but fails (quota, network, wrong key), the panel shows this basic brief instead of an error.
 
 ## Speed and AI providers
 | Provider | What you need |

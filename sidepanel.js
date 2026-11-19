@@ -421,7 +421,8 @@ async function show(key, entry) {
   $("result").classList.remove("hidden");
   $("footer").classList.remove("hidden");
   $("analyzeBtn").textContent = "Re-analyze";
-  openChat(key, () => chatContext(key, entry));
+  if (aiActive(await getSettings())) openChat(key, () => chatContext(key, entry));
+  else if (typeof closeChat === "function") closeChat(); // chat.js loads after this file
 }
 
 // ---------- NetBox + Podcrawler ----------
@@ -545,7 +546,7 @@ async function setupParts(key, entry, nb) {
       renderStock(box, "loading", site);
       renderStock(box, await netboxStockForPart(settings, p, site), site);
     } : null,
-    onAsk: () => askAI("Which part do I need to swap? Give me the Lambda P/N."),
+    onAsk: aiActive(settings) ? () => askAI("Which part do I need to swap? Give me the Lambda P/N.") : null,
     onReload: async () => {
       state.loading = true;
       draw();
@@ -787,7 +788,7 @@ async function setupRma(key, entry) {
   let aiRun = 0;
   const aiPrefill = async () => {
     const settings = await getSettings();
-    if (missingConfig(settings)) return;
+    if (!aiActive(settings)) return;
     const run = ++aiRun;
     Object.assign(state, { aiBusy: true, aiNote: "" });
     draw();
@@ -1172,7 +1173,7 @@ async function renderEmpty(tab, settings) {
     await chrome.tabs.update(t.id, { active: true });
     await chrome.windows.update(t.windowId, { focused: true });
   };
-  const noKey = missingConfig(settings);
+  const noKey = settings.aiEnabled !== false && missingConfig(settings);
   $("empty").replaceChildren(...[
     h("div", { class: "empty-icon" }, "🎫"),
     h("h2", {}, onJira ? "Open a ticket to start" : "Go to a Jira ticket tab to start"),
@@ -1199,13 +1200,12 @@ async function analyze(force = false) {
   const key = current.key;
   const settings = await getSettings();
 
-  const problem = missingConfig(settings);
-  if (problem) return setStatus(problem, "error");
+  const useAi = aiActive(settings); // off or not set up: a basic brief from the ticket's own text
 
   const cacheKey = `result:${key}`;
   if (!force) {
     const cached = (await chrome.storage.session.get(cacheKey))[cacheKey];
-    if (cached?.brief) {
+    if (cached?.brief && !!cached.basic === !useAi) {
       setStatus("");
       return show(key, cached);
     }
@@ -1235,9 +1235,10 @@ async function analyze(force = false) {
     const privacy = makeRedactor(settings, people);
     const started = Date.now();
     setStep("ticket", "ok");
+    let brief, model, basic = !useAi, aiError = "";
+    if (useAi) {
     setStep("ai", "run", providerLabel(settings.provider).replace(/ \(.*\)/, ""));
     const tick = setInterval(() => current.key === key && setStep("ai", "run", `${Math.round((Date.now() - started) / 1000)} s`), 1000);
-    let brief, model;
     // Show the brief as it is written. The power verdict stays "checking" until the AI has moved past it.
     // Redraw at most every 250 ms, and only when the brief actually changed: no flicker while it streams.
     let drawn = "", pending = null, timer = null, streamDone = false;
@@ -1260,22 +1261,33 @@ async function analyze(force = false) {
     };
     try {
       ({ brief, model } = await analyzeIssue(settings, key, text, onPartial, privacy));
+      setStep("ai", "ok", `${Math.round((Date.now() - started) / 1000)} s`);
+    } catch (e) {
+      // The AI failed (quota, network, bad key): fall back to the basic brief instead of showing nothing.
+      aiError = String(e.message || e);
+      basic = true;
+      setStep("ai", "err", "basic brief");
     } finally {
       clearInterval(tick);
       streamDone = true;
       clearTimeout(timer);
     }
-    setStep("ai", "ok", `${Math.round((Date.now() - started) / 1000)} s`);
+    }
+    if (basic) {
+      brief = basicBrief(issue.data, text);
+      if (settings.podcrawlerStep) brief = ensurePodcrawlerStep(brief);
+      model = aiError ? "AI failed · basic brief" : settings.aiEnabled === false ? "AI off · basic brief" : "No AI key · basic brief";
+    }
     // Exact field mappings (if configured) win over the model's extraction.
     if (mapped.server) brief.server_names = mapped.server.split(/\s*,\s*/).filter(Boolean);
     if (mapped.location && !locationText(brief.location)) brief.location.site = mapped.location;
 
-    const entry = { brief, model, meta: issueMeta(issue.data), ticketIps: findIPsInText(text), issueText: text, analyzedAt: Date.now(), tookS: Math.round((Date.now() - started) / 1000),
+    const entry = { brief, model, basic, meta: issueMeta(issue.data), ticketIps: findIPsInText(text), issueText: text, analyzedAt: Date.now(), tookS: Math.round((Date.now() - started) / 1000),
       people, hidden: privacy.on ? privacy.hidden : null };
     await chrome.storage.session.set({ [cacheKey]: entry });
     if (force) await chrome.storage.session.remove(`checks:${key}`);
     if (current.key === key) {
-      setStatus("");
+      setStatus(aiError ? `The AI couldn't answer (${aiError}). This is the basic brief from the ticket's text; NetBox, BMC and parts still work.` : "", aiError ? "error" : "");
       await show(key, entry);
     }
   } catch (e) {
@@ -1333,6 +1345,26 @@ $("settingsBtn").replaceChildren(icon("settings", 16));
 $("chatSend").replaceChildren(icon("send", 15));
 
 $("analyzeBtn").addEventListener("click", () => analyze(true));
+
+// AI on/off switch. Off: the brief comes from patterns in the ticket, and NetBox, BMC, ping and parts still work.
+async function drawAiToggle() {
+  const s = await getSettings(), on = s.aiEnabled !== false;
+  const b = $("aiToggle");
+  b.setAttribute("aria-checked", String(on));
+  b.replaceChildren(h("span", { class: "knob" }), "AI");
+  b.title = on
+    ? (missingConfig(s) ? "AI is on but has no key yet (Settings), so you get the basic brief. Click to turn the AI off." : "AI is on: it writes the brief and answers chat. Click to turn it off.")
+    : "AI is off: the brief comes from the ticket's text (server, IPs, rack, power-down keywords). NetBox, BMC, ping and parts still work. Click to turn the AI on.";
+}
+$("aiToggle").addEventListener("click", async () => {
+  const s = await getSettings();
+  await chrome.storage.local.set({ aiEnabled: s.aiEnabled === false });
+  await drawAiToggle();
+  if (current.key) analyze(true);
+  else refresh();
+});
+chrome.storage.onChanged.addListener((ch, area) => { if (area === "local" && ch.aiEnabled) drawAiToggle(); });
+drawAiToggle();
 $("settingsBtn").addEventListener("click", () => chrome.runtime.openOptionsPage());
 // Copy as Jira comment (button at the end of the brief).
 async function copyComment() {

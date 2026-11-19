@@ -93,6 +93,7 @@ async function load() {
   $("localBaseUrl").value = s.localBaseUrl;
   $("localApiKey").value = s.localApiKey;
   $("autoRun").checked = s.autoRun;
+  $("aiEnabled").checked = s.aiEnabled !== false;
   $("jiraHosts").value = s.jiraHosts.join(", ");
   $("serverField").value = s.serverField;
   $("locationField").value = s.locationField;
@@ -198,6 +199,7 @@ $("save").addEventListener("click", async () => {
   await chrome.storage.local.set({
     ...s,
     autoRun: $("autoRun").checked,
+    aiEnabled: $("aiEnabled").checked,
     jiraHosts: hosts,
     serverField: $("serverField").value.trim(),
     locationField: $("locationField").value.trim(),

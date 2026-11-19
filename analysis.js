@@ -236,3 +236,106 @@ function ensurePodcrawlerStep(r) {
   steps.splice(at, 0, PODCRAWLER_STEP);
   return { ...r, next_steps: steps };
 }
+
+// ---------- Basic brief, no AI ----------
+// Used when the AI is switched off, when there's no AI key, or when the AI call fails. Everything comes from
+// patterns in the ticket: server names, IPs, rack/RU, the job type, comments as history, and a power-down check
+// from plain keywords (the newest matching line wins, and the line is shown so the tech can read it).
+
+// Lambda-style hostnames: lower case, at least three parts, letters and digits ("ord01-cl01-hgx-0084").
+const HOSTNAME_RE = /(?<![\w./@-])[a-z][a-z0-9]*(?:-[a-z0-9]+){2,}(?![\w/@-]|\.\w)/g;
+function findHostnamesInText(text, summary = "") {
+  const score = new Map();
+  const add = (s, w) => {
+    for (const n of String(s || "").match(HOSTNAME_RE) || []) {
+      if (n.length > 64 || !/\d/.test(n) || /^\d{4}-\d{2}-\d{2}/.test(n) || /^[a-f0-9]{8}-[a-f0-9]{4}-/.test(n)) continue;
+      score.set(n, (score.get(n) || 0) + w);
+    }
+  };
+  add(summary, 10);
+  add(text, 1);
+  return [...score].sort((a, b) => b[1] - a[1]).map(([n]) => n).slice(0, 3);
+}
+
+// Each IP with a role guessed from the words just before it ("BMC: 10.1.2.3" → bmc).
+function findTargetsInText(text) {
+  const t = String(text || "");
+  return findIPsInText(t).map((ip) => {
+    const at = t.indexOf(ip), before = t.slice(Math.max(0, at - 40), at).toLowerCase();
+    // The label closest to the IP wins ("BMC: 10.0.0.1, host 10.0.0.2" → the second one is the host).
+    const near = (re) => Math.max(-1, ...[...before.matchAll(re)].map((m) => m.index));
+    const roles = [["bmc", /bmc|ipmi|idrac|ilo\b|oob/g], ["mgmt", /mgmt|management/g], ["data", /\bib\b|infiniband|storage|data/g], ["host", /host|\bos\b|node|server/g]]
+      .map(([role, re]) => [role, near(re)]).filter(([, i]) => i >= 0).sort((a, b) => b[1] - a[1]);
+    return { role: roles[0]?.[0] || "other", address: ip };
+  });
+}
+
+const TASK_TYPES = [
+  [/\bgpu\d*\b|h100|h200|b200|gb200|fell off the bus|xid/i, "GPU replacement", "GPU"],
+  [/\bdimm|memory|\becc\b|\bram\b/i, "DIMM swap", "DIMM"],
+  [/\bpsu\d*\b|power supply/i, "PSU swap", "PSU"],
+  [/\bfans?\d*\b/i, "Fan swap", "Fan"],
+  [/\bnic\d*\b|connectx|transceiver|optic|\bport\b/i, "NIC / optics", "NIC"],
+  [/\bnvme|\bssd\b|\bdrive\b|\bdisk\b/i, "Drive swap", "NVMe drive"],
+  [/motherboard|mainboard|baseboard/i, "Motherboard swap", "Motherboard"],
+  [/\bcable|reseat|re-seat/i, "Cable / reseat", ""],
+  [/rack\s*(&|and)\s*stack|\binstall\w* (new )?(node|server)/i, "Rack & stack", ""],
+  [/decom/i, "Decommission", ""],
+  [/power[- ]?cycle|reboot|\breset\b/i, "Power cycle", ""],
+  [/inspect|check|look at/i, "Inspection", ""]
+];
+
+const PD_RULES = [
+  { verdict: "do_not", re: /\b(do not|don'?t|never|cannot|can'?t)\s+(power|shut|turn|reboot|take)\w*(\s+(it|the (node|server)))?\s*(down|off)?\b|\bnot approved\b|\bcustomer (workload|jobs?) (is |are )?(still )?running\b|\bin production\b|\bawaiting (customer )?approval\b|\bwait for (customer )?approval\b/i,
+    reason: "The ticket says not to power it down (or a customer workload is running)." },
+  { verdict: "approved", re: /\b(power[- ]?(down|off)|shut ?down|downtime|maintenance)\s+(is\s+|has been\s+)?(approved|ok|okay|confirmed|allowed|granted)\b|\bapproved (to|for) (power|shut|take)\w*|\b(ok|okay|safe|clear(ed)?|good) to (power|shut|take)\w*|\b(node|server|host) (is |has been )?(drained|cordoned)\b|\balready (powered )?(down|off)\b|\bdecommission(ed|ing)?\b/i,
+    reason: "The ticket has a line that allows powering it down. Read it to be sure." },
+  { verdict: "not_needed", re: /\bhot[- ]?(swap|plug)\w*/i, reason: "The ticket mentions hot-swap work, which usually doesn't need a power-down." }
+];
+
+// The newest line that matches any rule decides (Jira comments are oldest → newest in the text).
+function basicPowerDown(text, taskType) {
+  const lines = String(text || "").split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    for (const r of PD_RULES) {
+      const m = lines[i].match(r.re);
+      if (!m) continue;
+      const line = lines[i].replace(/^-\s*/, "").trim();
+      const at = Math.max(0, line.indexOf(m[0]) - 80);
+      return { verdict: r.verdict, reason: `${r.reason} (Found by keywords, not AI.)`, evidence: (at ? "…" : "") + line.slice(at, at + 220) + (line.length > at + 220 ? "…" : "") };
+    }
+  }
+  return { verdict: "confirm_first", reason: `No line in the ticket clearly allows or forbids a power-down${taskType ? ` for this ${taskType.toLowerCase()}` : ""}. Confirm before powering down. (Checked by keywords, not AI.)`, evidence: "" };
+}
+
+function basicBrief(data, text) {
+  const f = data?.fields || {};
+  const summary = simplify(f.summary);
+  const desc = simplify(f.description);
+  const hosts = findHostnamesInText(text, summary);
+  const pick = (re) => (String(text).match(re) || [])[1] || "";
+  const rack = pick(/\brack\s*(?:id)?\s*[:#]?\s*([A-Z0-9][\w.-]{0,15}\d[\w.-]{0,8})/i);
+  const unit = pick(/\b(?:RU|U|rack ?unit)\s*[:#]?\s*(\d{1,2}(?:\s*-\s*\d{1,2})?)\b/);
+  const row = pick(/\b(?:row|cage|hall)\s*[:#]?\s*([A-Z0-9][\w-]{0,8})\b/i);
+  const siteCode = (hosts[0] || "").match(/^([a-z]{3}\d{1,2})-/)?.[1]?.toUpperCase() || "";
+  const noHosts = (x) => x.replace(HOSTNAME_RE, " "); // "sjc02-r07-gpu-0012" says nothing about the job
+  const tt = TASK_TYPES.find(([re]) => re.test(noHosts(summary))) || TASK_TYPES.find(([re]) => re.test(noHosts(`${summary}\n${desc}`)));
+  const comments = (f.comment?.comments || []).slice(-8);
+  const brief = normalizeDc({
+    task_type: tt?.[1] || "",
+    server_names: hosts,
+    location: { site: siteCode, row: /\d/.test(row) ? row : "", rack, unit },
+    network_targets: findTargetsInText(text),
+    power_down: basicPowerDown(text, tt?.[1]),
+    request_summary: summary,
+    current_status: comments.length ? `Last comment: ${simplify(comments.at(-1).author?.displayName) || "someone"}, ${day(comments.at(-1).created).slice(0, 10)}.` : "",
+    history: comments.map((c) => ({ when: day(c.created).slice(0, 10), who: simplify(c.author?.displayName), what: clip(simplify(c.body).replace(/\s+/g, " "), 160) })),
+    next_steps: [],
+    parts_tools: tt?.[2] ? [tt[2]] : [],
+    cautions: [],
+    probable_cause: "",
+    missing_info: hosts.length ? [] : ["No server hostname found in the ticket: add one, or set the server field in Settings → Jira."],
+    confidence: "low"
+  });
+  return brief;
+}
