@@ -1347,6 +1347,7 @@ async function refresh() {
   resetSteps();
 
   $("issueKey").textContent = key || "No ticket open";
+  showOsButton();
   $("analyzeBtn").disabled = !key;
   $("analyzeBtn").textContent = "Analyze";
   hideResult();
@@ -1377,6 +1378,26 @@ $("settingsBtn").replaceChildren(icon("settings", 16));
 $("chatSend").replaceChildren(icon("send", 15));
 
 $("analyzeBtn").addEventListener("click", () => analyze(true));
+
+// ---------- Lambda OS link ----------
+// Lambda OS (the new-tab dashboard) introduces itself the first time it opens a ticket here; after that this
+// button opens the current ticket in its dashboard. Hidden while there's no ticket or Lambda OS isn't known.
+$("osBtn").replaceChildren(icon("external", 16));
+async function showOsButton() {
+  const { peerLambdaOS } = await chrome.storage.local.get("peerLambdaOS");
+  $("osBtn").classList.toggle("hidden", !(peerLambdaOS && current.key));
+}
+$("osBtn").addEventListener("click", async () => {
+  const { peerLambdaOS } = await chrome.storage.local.get("peerLambdaOS");
+  const r = peerLambdaOS && await chrome.runtime
+    .sendMessage(peerLambdaOS, { app: "lambda-rackside", type: "lambdaos.open", ticket: current.key })
+    .catch(() => null);
+  if (r?.ok) return;
+  await chrome.storage.local.remove("peerLambdaOS"); // removed, disabled or reinstalled under a new ID
+  showOsButton();
+  toast("Lambda OS isn't reachable. Open a ticket in Rackside from Lambda OS once to link them again.");
+});
+chrome.storage.onChanged.addListener((c, area) => area === "local" && c.peerLambdaOS && showOsButton());
 
 // Settings → Use AI changed: show the open ticket again the new way (AI brief, or the basic one).
 chrome.storage.onChanged.addListener((ch, area) => {

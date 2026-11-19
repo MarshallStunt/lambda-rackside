@@ -58,6 +58,22 @@ chrome.runtime.onStartup.addListener(() => {
   newVersionCheck();
 });
 
+// ---------- Lambda OS link ----------
+// Lambda OS (the new-tab dashboard, a separate extension) sends "hello" and "rackside.open" here. Its ID is
+// remembered from the sender so the panel can link back. sidePanel.open must run before any await, or Chrome
+// drops the click that allows it.
+chrome.runtime.onMessageExternal.addListener((msg, sender, reply) => {
+  if (msg?.app !== "lambda-os" || !sender.id) return;
+  chrome.storage.local.set({ peerLambdaOS: sender.id });
+  if (msg.type === "hello") { reply({ ok: true, version: chrome.runtime.getManifest().version }); return; }
+  if (msg.type === "rackside.open") {
+    if (typeof msg.windowId !== "number") { reply({ ok: true, panel: false }); return; }
+    chrome.sidePanel.open({ windowId: msg.windowId })
+      .then(() => reply({ ok: true, panel: true }), (e) => reply({ ok: true, panel: false, error: String(e?.message || e) }));
+    return true;
+  }
+});
+
 // ---------- New version alert ----------
 // Every 2 hours while Chrome runs (and at startup / after an update): a "NEW" badge on the toolbar icon while a
 // newer version is waiting, and one notification per new version. Clicking it opens Settings at Updates.
