@@ -316,6 +316,7 @@ function rmaCatalogPicker(state, actions) {
     f.partDesc = box.value;
     state.touched.add("partDesc");
     badge?.remove();
+    actions.onType?.();
     clearTimeout(t);
     t = setTimeout(show, 200);
   });
@@ -338,6 +339,7 @@ function rmaForm(state, actions) {
     f[key] = el.value;
     state.touched.add(key); // the user's own value: never replaced by a suggestion
     badge?.remove();
+    actions.onType?.(); // saves the draft
     if (key === "oldSn" || key === "newSn") actions.onSerial?.();
     if (key === "component") actions.onComponent?.();
   };

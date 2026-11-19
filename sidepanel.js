@@ -401,7 +401,9 @@ async function chatContext(key, entry) {
   return { issueText: entry.issueText, brief: entry.brief, netbox: mine ? lastResult.netbox : null, bmc: mine ? lastResult.bmc : null, people: entry.people || [] };
 }
 
-async function show(key, entry) {
+// fresh: a new analysis (Analyze / Re-analyze) → NetBox and ping run again. Otherwise (coming back to a ticket's
+// tab) everything is shown as you left it, from this browser session, with nothing fetched again.
+async function show(key, entry, fresh = false) {
   lastResult = { key, ...entry };
   const checksKey = `checks:${key}`;
   const saved = (await chrome.storage.session.get(checksKey))[checksKey] || [];
@@ -417,7 +419,7 @@ async function show(key, entry) {
     openSlack
   });
   updateGlance(); // now, not on the next refresh: the card never shows empty
-  startLookups(key, entry);
+  startLookups(key, entry, fresh);
   $("meta").textContent = `${entry.model} · ${new Date(entry.analyzedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${entry.tookS ? ` · ${entry.tookS} s` : ""}${entry.hidden != null && !entry.basic ? ` · 🔒 ${entry.hidden} hidden from AI` : ""} · v${chrome.runtime.getManifest().version}`;
   $("result").classList.remove("hidden");
   $("footer").classList.remove("hidden");
@@ -455,7 +457,6 @@ function drawAiHint(settings, entry) {
 
 // ---------- NetBox + Podcrawler ----------
 
-const NETBOX_MAX_AGE_MS = 10 * 60 * 1000;
 let lookupRun = 0;
 
 function openUrl(url) {
@@ -484,7 +485,6 @@ async function startLookups(key, entry, force = false) {
     };
     const cacheKey = `nb:${key}`;
     nb = force ? null : (await chrome.storage.session.get(cacheKey))[cacheKey];
-    if (nb && Date.now() - nb.at > NETBOX_MAX_AGE_MS) nb = null;
     if (!nb) {
       renderNetbox(box(), { loading: true }, actions);
       setStep("netbox", "run");
@@ -502,7 +502,7 @@ async function startLookups(key, entry, force = false) {
   setupBmc(key, entry, nb);
   setupParts(key, entry, nb);
   setupRma(key, entry);
-  setupPing(key, entry.brief, entry.ticketIps || [], netboxPingTargets(nb));
+  setupPing(key, entry.brief, entry.ticketIps || [], netboxPingTargets(nb), force);
 }
 
 // ---------- Parts catalog & stock ----------
@@ -590,7 +590,7 @@ async function setupParts(key, entry, nb) {
       state.error = e.message;
     }
     state.loading = false;
-    if (current.key === key) draw();
+    if (current.key === key) { draw(); rmaViews.get(key)?.draw(); } // a restored RMA draft gets its catalog
   };
   partsView = { key, state, update: () => { match(); draw(); } };
   draw();
@@ -599,18 +599,55 @@ async function setupParts(key, entry, nb) {
 
 // ---------- RMA (Component Replacement under the ticket → Jira Automation opens the RMA ticket) ----------
 
+// One RMA card per ticket, kept while the panel is open: switching tabs and coming back shows the card exactly
+// as you left it (form, suggestions, step). The draft is also saved for the browser session, so closing and
+// reopening the panel brings it back too. Nothing is sent to Jira until you click Create.
+const rmaViews = new Map();
+const RMA_DRAFT_SKIP = new Set(["catalog", "serialTimer"]);
+function rmaDraftOut(state) {
+  const out = {};
+  for (const [k, v] of Object.entries(state)) if (!RMA_DRAFT_SKIP.has(k)) out[k] = v instanceof Set ? { __set: [...v] } : v;
+  return out;
+}
+function rmaDraftIn(saved) {
+  const state = {};
+  for (const [k, v] of Object.entries(saved)) state[k] = v && v.__set ? new Set(v.__set) : v;
+  // Cut off mid-step when the panel closed: back to the form (or to review, for a Create whose outcome we don't know).
+  if (state.step === "loading") state.step = "idle";
+  if (state.step === "running") Object.assign(state, { step: "review", error: "The panel closed while this was being sent. Check the ticket in Jira before trying again." });
+  state.aiBusy = false;
+  return state;
+}
+
 async function setupRma(key, entry) {
-  const store = `rma:${key}`;
-  const state = { step: "idle", key, progress: [], choices: [], form: {}, sources: {}, touched: new Set(), result: (await chrome.storage.session.get(store))[store] || null };
-  if (state.result) state.step = "done";
+  const view = rmaViews.get(key);
+  if (view) { view.setEntry(entry); return view.draw(); }
+  const store = `rma:${key}`, draftKey = `rmaDraft:${key}`;
+  const got = await chrome.storage.session.get([store, draftKey]);
+  if (rmaViews.has(key)) { rmaViews.get(key).setEntry(entry); return rmaViews.get(key).draw(); } // set up meanwhile
+  const state = got[draftKey] ? rmaDraftIn(got[draftKey])
+    : { step: "idle", key, progress: [], choices: [], form: {}, sources: {}, touched: new Set(), result: got[store] || null };
+  if (!got[draftKey] && state.result) state.step = "done";
   const box = () => (current.key === key ? document.getElementById("rmaBox") : null);
+  // The draft is saved while there's one to lose (form or review); cleared once it's done, reset or never started.
+  let saveTimer;
+  const saveDraft = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      if (["form", "review", "running"].includes(state.step)) chrome.storage.session.set({ [draftKey]: rmaDraftOut(state) }).catch(() => {});
+      else chrome.storage.session.remove(draftKey).catch(() => {});
+    }, 300);
+  };
   // Redraws keep the cursor where it was (the AI's suggestions can arrive while you type).
   const draw = () => {
     const el = document.activeElement, key_ = el?.dataset?.key, pos = el?.selectionEnd;
+    if (!state.catalog && state.step !== "idle") state.catalog = catalog(); // a restored draft: the catalog isn't saved with it
     renderRma(box(), state, actions);
     const again = key_ && box()?.querySelector(`[data-key="${key_}"]`);
     if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch {} }
+    saveDraft();
   };
+  rmaViews.set(key, { draw, setEntry: (e) => { entry = e; } });
   const jira = (op, args) => rmaJira(current.tabId, op, args);
   const step = (text, s = "run") => { state.progress.push({ text, state: s }); draw(); return state.progress.at(-1); };
   const fieldId = (name) => state.meta.fields[RMA_FIELD_NAMES[name]]?.id;
@@ -1013,7 +1050,8 @@ async function setupRma(key, entry) {
       state.step = rma ? "done" : "review";
       draw();
     },
-    openIssue: (k) => openUrl(`${current.origin}/browse/${k}`)
+    openIssue: (k) => openUrl(`${current.origin}/browse/${k}`),
+    onType: saveDraft
   };
   if (lastResult?.key === key && state.result) lastResult.rma = state.result;
   draw();
@@ -1029,15 +1067,19 @@ function pingByIp(ping) {
   return Object.fromEntries((ping?.results || []).map((x) => [x.address, x]));
 }
 
+// BMC logins you pasted, per ticket, so switching tabs doesn't ask for them again. Memory only: gone when the panel closes.
+const bmcLogins = new Map();
+
 async function setupBmc(key, entry, nb) {
   const settings = await getSettings();
   const who = bmcTargets(entry.brief, nb, findSerialsInText(entry.issueText || ""));
   const cacheKey = `bmc:${key}`;
   const state = {
-    who, showLogin: {}, creds: {}, power: {}, console: {}, pending: {}, user: settings.bmcUser || "ADMIN",
+    who, showLogin: {}, creds: bmcLogins.get(key) || {}, power: {}, console: {}, pending: {}, user: settings.bmcUser || "ADMIN",
     verdict: entry.brief.power_down, reach: pingByIp(lastResult?.key === key ? lastResult.ping : null),
     health: (await chrome.storage.session.get(cacheKey))[cacheKey] || {}
   };
+  bmcLogins.set(key, state.creds);
   const box = () => (current.key === key ? document.getElementById("bmcBox") : null);
   const draw = () => renderBmc(box(), state, actions);
   const saveHealth = async () => {
@@ -1128,10 +1170,9 @@ function updateBmcReach(key, ping) {
   bmcView.draw();
 }
 
-const PING_MAX_AGE_MS = 60 * 1000; // re-ping automatically if older than this
 let pingRun = 0;
 
-async function setupPing(key, brief, ticketIps, extraTargets = []) {
+async function setupPing(key, brief, ticketIps, extraTargets = [], force = false) {
   const settings = await getSettings();
   const targets = buildPingTargets(brief, ticketIps, extraTargets);
   const cacheKey = `ping:${key}`;
@@ -1161,8 +1202,9 @@ async function setupPing(key, brief, ticketIps, extraTargets = []) {
   if (lastResult?.key === key) lastResult.ping = cached || null;
   updateBmcReach(key, cached);
   const sameTargets = cached?.results && targets.map((t) => t.address).sort().join() === cached.results.map((x) => x.address).sort().join();
-  const fresh = cached && sameTargets && Date.now() - cached.at < PING_MAX_AGE_MS;
-  if (fresh || !settings.pingAuto) renderPing(box(), { targets, resp: cached }, actions);
+  // Kept for the session: pinged again only on Analyze / Re-analyze, the Ping button, or when the targets changed.
+  const reuse = cached && sameTargets && !force;
+  if (reuse || !settings.pingAuto) renderPing(box(), { targets, resp: cached }, actions);
   else doPing();
 }
 
@@ -1320,7 +1362,7 @@ async function analyze(force = false) {
     if (force) await chrome.storage.session.remove(`checks:${key}`);
     if (current.key === key) {
       setStatus(aiError ? `The AI couldn't answer (${aiError}). This is the basic brief from the ticket's text; NetBox, BMC and parts still work.` : "", aiError ? "error" : "");
-      await show(key, entry);
+      await show(key, entry, true);
     }
   } catch (e) {
     if (current.key === key) hideResult(); // don't leave a half-written brief on screen
@@ -1341,6 +1383,7 @@ async function refresh() {
     if (!key) renderEmpty(tab, settings); // other tabs may have changed
     return;
   }
+  if (current.key) scrollAt.set(current.key, window.scrollY);
   current.tabId = tab?.id ?? null;
   current.key = key;
   current.origin = tab?.url ? new URL(tab.url).origin : "";
@@ -1358,8 +1401,21 @@ async function refresh() {
 
   const cacheKey = `result:${key}`;
   const cached = (await chrome.storage.session.get(cacheKey))[cacheKey];
-  if (cached?.brief) show(key, cached);
+  if (cached?.brief) show(key, cached).then(() => backToScroll(key));
   else if (settings.autoRun) analyze();
+}
+
+// Where you were on each ticket's panel, so coming back to its tab lands you there (the cards below the brief
+// fill in a moment later, so it's tried again as they appear, until you scroll yourself).
+const scrollAt = new Map();
+function backToScroll(key) {
+  const y = scrollAt.get(key);
+  if (!y) return;
+  let moved = false;
+  const stop = () => (moved = true);
+  window.addEventListener("wheel", stop, { once: true, passive: true });
+  window.addEventListener("touchmove", stop, { once: true, passive: true });
+  for (const ms of [0, 250, 700, 1500]) setTimeout(() => { if (!moved && current.key === key && window.scrollY < y) window.scrollTo(0, y); }, ms);
 }
 
 let refreshTimer;

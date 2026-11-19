@@ -25,6 +25,7 @@ A side panel for Datacenter Operations. Open a Jira ticket and get a one-glance 
 ## The panel, top to bottom
 - **🆕 Update banner** when a newer version is on GitHub (only for people with access to the repo; everyone else gets new versions from the RackSide Drive folder, see *Updates* above).
 - **No ticket in this tab?** A start screen says to go to a Jira ticket tab, lists the tickets already open in your tabs (click one to go there), and mentions that an AI key is optional.
+- **Switching tabs keeps your work:** come back to a ticket and it's exactly as you left it (RMA form in progress, BMC login, chat and the question you were typing, scroll position), with nothing fetched again. Only **Re-analyze** reads the ticket, NetBox and ping again; the ping and NetBox cards also have their own refresh buttons. An RMA draft survives closing the panel too, until Chrome closes.
 - **Header** (stays on screen): ticket key, **Re-analyze**, Settings, a progress line (✓ Ticket · ✓ AI brief · ✓ NetBox · ✕ Ping 1/2 up) and a jump bar with every section in its colour (📋 Request · 🖥️ Server · 🔧 BMC · ✅ Steps · 🧰 Parts · 🔁 RMA · 🕘 History · 🗄️ NetBox).
 - **Ticket strip**: job type, status, priority; 👤 assignee and 📝 reporter (click a name to message them on Slack).
 - **⏻ Power-down verdict**: ✓ OK · i Not needed · ! Confirm first · ✕ Do NOT, with reason and evidence. Without explicit approval in the ticket it never says OK.

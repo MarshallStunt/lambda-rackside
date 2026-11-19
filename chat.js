@@ -111,8 +111,9 @@ async function checkAnswerStock(m, key, settings, catalog, site, checked) {
   renderChat();
   const results = await Promise.all(parts.map((p) => checked.get(partId(p)) || netboxStockForPart(settings, p, site)));
   m.stock = parts.map((p, i) => ({ label: `${partId(p)} · ${[p.vendor, p.name].filter(Boolean).join(" ")}`.slice(0, 90), result: results[i] }));
-  if (chat.key !== key) return; // ticket switched: the message was saved without stock
-  await saveChat();
+  const history = chatMem.get(key)?.history;
+  if (history) await chrome.storage.session.set({ [`chat:${key}`]: history }).catch(() => {}); // its own ticket's chat
+  if (chat.key !== key) return; // on another ticket now: shown when you come back
   renderChat();
   scrollChatIntoView();
 }
@@ -158,18 +159,30 @@ async function saveChat() {
 }
 
 // Called whenever a brief is shown. getContext() → { issueText, brief }
+// Each ticket's chat, kept while the panel is open: an answer that arrives while you're on another tab lands in
+// its own ticket's chat, and a question you were typing is still there when you come back.
+const chatMem = new Map(); // key → { history, busy, draft }
+
 async function openChat(key, getContext) {
+  if (chat.key && chat.key !== key && chatMem.has(chat.key)) chatMem.get(chat.key).draft = $("chatInput").value;
+  if (!chatMem.has(key)) {
+    const history = (await chrome.storage.session.get(`chat:${key}`))[`chat:${key}`] || [];
+    for (const m of history) if (m.stock === "loading") delete m.stock; // lookup cut off when the panel closed
+    if (!chatMem.has(key)) chatMem.set(key, { history, busy: false, draft: "" });
+  }
+  const mem = chatMem.get(key);
+  if (chat.key !== key) { $("chatInput").value = mem.draft || ""; autoGrow(); }
   chat.key = key;
   chat.getContext = getContext;
-  chat.busy = false;
-  chat.history = (await chrome.storage.session.get(`chat:${key}`))[`chat:${key}`] || [];
-  for (const m of chat.history) if (m.stock === "loading") delete m.stock; // lookup cut off when the panel closed
+  chat.busy = mem.busy;
+  chat.history = mem.history;
   $("chat").classList.remove("hidden");
   $("chatForm").classList.remove("hidden");
   renderChat();
 }
 
 function closeChat() {
+  if (chat.key && chatMem.has(chat.key)) chatMem.get(chat.key).draft = $("chatInput").value;
   chat.key = null;
   $("chat").classList.add("hidden");
   $("chatForm").classList.add("hidden");
@@ -178,9 +191,11 @@ function closeChat() {
 async function askAI(question) {
   question = (question || "").trim();
   if (!question || chat.busy || !chat.key) return;
-  const key = chat.key;
-  chat.history.push({ role: "user", content: question });
-  chat.busy = true;
+  const key = chat.key, mem = chatMem.get(key), history = chat.history;
+  history.push({ role: "user", content: question });
+  chat.busy = mem.busy = true;
+  mem.draft = "";
+  chrome.storage.session.set({ [`chat:${key}`]: history }).catch(() => {});
   $("chatInput").value = "";
   autoGrow();
   renderChat();
@@ -234,22 +249,21 @@ async function askAI(question) {
     } catch (e) {
       console.warn("catalog for chat", e); // the chat still works without it
     }
-    const messages = chat.history.filter((m) => !m.error).slice(-MAX_TURNS).map(({ role, content }) => ({ role, content: privacy.redact(content) }));
+    const messages = history.filter((m) => !m.error).slice(-MAX_TURNS).map(({ role, content }) => ({ role, content: privacy.redact(content) }));
     const { text } = await generateText(settings, {
       system: privacy.redact(chatSystemPrompt(settings, key, issueText, brief, netbox, bmc, catalogRows, serverParts, stock)),
       messages
     });
-    if (chat.key !== key) return; // user switched tickets meanwhile
     const answer = { role: "assistant", content: tidyAnswer(privacy.restore(text)), note: searchNote || undefined };
-    chat.history.push(answer);
+    history.push(answer); // into this ticket's chat, even if you're on another tab now
     if (settings.netboxEnabled && catalog) stockAfter = () => checkAnswerStock(answer, key, settings, catalog, site, checked);
   } catch (e) {
-    if (chat.key !== key) return;
-    chat.history.push({ role: "assistant", content: String(e.message || e), error: true });
+    history.push({ role: "assistant", content: String(e.message || e), error: true });
   } finally {
+    mem.busy = false;
+    await chrome.storage.session.set({ [`chat:${key}`]: history }).catch(() => {});
     if (chat.key === key) {
       chat.busy = false;
-      await saveChat();
       renderChat();
       scrollChatIntoView();
       $("chatInput").focus();
@@ -280,7 +294,7 @@ $("chatInput").addEventListener("keydown", (e) => {
 });
 $("chatInput").addEventListener("input", autoGrow);
 $("chatClear").addEventListener("click", async () => {
-  chat.history = [];
+  chat.history.length = 0; // same array: it is this ticket's chat in memory too
   await saveChat();
   renderChat();
 });
