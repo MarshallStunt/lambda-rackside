@@ -23,8 +23,8 @@ A side panel for Datacenter Operations. Open a Jira ticket and get a one-glance 
 **Updates:** new versions are posted in the [RackSide folder on Google Drive](https://drive.google.com/drive/folders/1Q8PssE0dSU0UFvriIVnHjL34avM0QjWT): download the zip, unzip it to the same place (replacing the old `lambda-rackside` folder; settings are kept), then click ↻ on Lambda Rackside in `chrome://extensions`. If you have access to the private GitHub repo, the extension also checks it every 2 hours and on every Analyze / Re-analyze, with your GitHub login. A new version shows a red **NEW** badge on the toolbar icon, one notification (click it to open Settings → Updates), and a 🆕 banner at the top of the panel; **Later** hides the banner and badge until the next version. **⬇️ Update now** downloads it with your GitHub login, the helper puts it in your lambda-rackside folder (`git pull` if it's a git copy, otherwise the new files over the old ones) and updates itself, and the extension reloads. *Update by hand* has a command that does the same from Terminal/PowerShell (or a ZIP link). Settings → Start → **Check for updates** checks right away. Needs helper 1.6.0 or later: older helpers update by hand once. The footer of the panel shows the version.
 
 ## The panel, top to bottom
-- **🆕 Update banner** when GitHub has a newer version (see *Updates* above).
-- **No ticket in this tab?** A start screen says to go to a Jira ticket tab, lists the tickets already open in your tabs (click one to go there), and reminds you to add an AI key if there isn't one.
+- **🆕 Update banner** when a newer version is on GitHub (only for people with access to the repo; everyone else gets new versions from the RackSide Drive folder, see *Updates* above).
+- **No ticket in this tab?** A start screen says to go to a Jira ticket tab, lists the tickets already open in your tabs (click one to go there), and mentions that an AI key is optional.
 - **Header** (stays on screen): ticket key, **Re-analyze**, Settings, a progress line (✓ Ticket · ✓ AI brief · ✓ NetBox · ✕ Ping 1/2 up) and a jump bar with every section in its colour (📋 Request · 🖥️ Server · 🔧 BMC · ✅ Steps · 🧰 Parts · 🔁 RMA · 🕘 History · 🗄️ NetBox).
 - **Ticket strip**: job type, status, priority; 👤 assignee and 📝 reporter (click a name to message them on Slack).
 - **⏻ Power-down verdict**: ✓ OK · i Not needed · ! Confirm first · ✕ Do NOT, with reason and evidence. Without explicit approval in the ticket it never says OK.
@@ -115,7 +115,7 @@ Settings → **Privacy**: before anything is sent to the AI, names, emails, phon
 
 ## Settings
 Five tabs, Save always at the bottom:
-- **Start**: getting started, **updates**, AI provider, key, model (**Test AI** sends a one-line question with your key and model and shows the answer and how long it took), response speed, and **back up / load settings** (a JSON file; API keys and the NetBox token only if you tick the box, so a file can be shared with the team).
+- **Start**: getting started, **updates**, **Use AI** (on/off), AI provider, key, model (**Test AI** sends a one-line question with your key and model and shows the answer and how long it took), response speed, and **back up / load settings** (a JSON file; API keys and the NetBox token only if you tick the box, so a file can be shared with the team).
 - **Servers & BMC**: ping helper, BMC username and web address, NetBox & Podcrawler, parts catalog link.
 - **Privacy**: privacy mode.
 - **Jira & AI**: self-hosted Jira hosts, server/location fields, people (Slack app or browser), team context and custom AI instructions.
@@ -175,13 +175,13 @@ If the AI is on but fails (quota, network, wrong key), the panel shows this basi
 |---|---|
 | `manifest.json` | Extension manifest (permissions, version) |
 | `background.js` | Service worker: opens the side panel, request headers, clears removed settings, new-version check (badge, notification) |
-| `sidepanel.html` / `sidepanel.js` | The panel: reads the ticket, runs the AI and all lookups; At a glance, jump bar, update banner, start screen |
+| `sidepanel.html` / `sidepanel.js` | The panel: reads the ticket, runs the AI (or the basic brief) and all lookups; "want more depth" AI card; At a glance, jump bar, update banner, start screen |
 | `render.js` | Draws the brief (folded sections, At a glance), ping and NetBox cards |
-| `analysis.js` | Brief schema, AI instructions, Jira comment |
+| `analysis.js` | Brief schema, AI instructions, the basic brief without AI (hostnames, IPs, power-down keywords, checklist), Jira comment |
 | `common.js` | Settings, appearance (theme, layout), developer contact, folder commands (setup, update), update check, AI providers (Claude, OpenAI, Gemini, local), streaming |
 | `chat.js` | Ask-the-AI box, part search planning |
 | `catalog.js` | Parts catalog: load, match, search, the server's own parts matched by MPN / GPU model, catalog rows for the AI, Parts card |
-| `netbox.js` | NetBox lookup, journal, modules, FastTrack scan (the server's parts), spare stock |
+| `netbox.js` | NetBox lookup by hostname and chassis S/N, journal, modules, FastTrack scan (the server's parts), spare stock |
 | `bmc.js` | BMC card: health, remote console, power panel |
 | `rma.js` | RMA card: part and serials prompt, catalog matching, review, creates and links the RMA ticket (or comments on the existing one) |
 | `ping.js` | Ping targets and the native-messaging call to the helper |
