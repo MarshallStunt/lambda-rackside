@@ -308,6 +308,20 @@ function basicPowerDown(text, taskType) {
   return { verdict: "confirm_first", reason: `No line in the ticket clearly allows or forbids a power-down${taskType ? ` for this ${taskType.toLowerCase()}` : ""}. Confirm before powering down. (Checked by keywords, not AI.)`, evidence: "" };
 }
 
+// A standard checklist for the job type: the same safe order every time (no AI, nothing ticket-specific).
+function basicSteps(tt, verdict) {
+  const replace = !!tt?.[2];
+  return [
+    "Confirm the server: its hostname and chassis S/N match NetBox (Server & location)",
+    verdict === "do_not" ? "CAUTION: Do not power it down: see the power-down note at the top"
+      : verdict === "confirm_first" ? "CAUTION: Get power-down approval before powering it down" : "",
+    replace ? "Check BMC health to confirm which part failed (BMC → Check health)" : "",
+    replace ? `Swap the ${tt[2]}, then check BMC health again` : "",
+    replace ? "File the RMA with the old and new S/N (RMA → Create RMA ticket)" : "",
+    "Update the ticket (📋 Copy as Jira comment)"
+  ].filter(Boolean);
+}
+
 function basicBrief(data, text) {
   const f = data?.fields || {};
   const summary = simplify(f.summary);
@@ -330,7 +344,7 @@ function basicBrief(data, text) {
     request_summary: summary,
     current_status: comments.length ? `Last comment: ${simplify(comments.at(-1).author?.displayName) || "someone"}, ${day(comments.at(-1).created).slice(0, 10)}.` : "",
     history: comments.map((c) => ({ when: day(c.created).slice(0, 10), who: simplify(c.author?.displayName), what: clip(simplify(c.body).replace(/\s+/g, " "), 160) })),
-    next_steps: [],
+    next_steps: basicSteps(tt, basicPowerDown(text, tt?.[1]).verdict),
     parts_tools: tt?.[2] ? [tt[2]] : [],
     cautions: [],
     probable_cause: "",

@@ -411,18 +411,46 @@ async function show(key, entry) {
   renderBrief($("result"), entry.brief, {
     key,
     meta: entry.meta,
+    basic: entry.basic,
     checks,
     onCheck: () => chrome.storage.session.set({ [checksKey]: [...checks] }),
     openSlack
   });
   updateGlance(); // now, not on the next refresh: the card never shows empty
   startLookups(key, entry);
-  $("meta").textContent = `${entry.model} · ${new Date(entry.analyzedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${entry.tookS ? ` · ${entry.tookS} s` : ""}${entry.hidden != null ? ` · 🔒 ${entry.hidden} hidden from AI` : ""} · v${chrome.runtime.getManifest().version}`;
+  $("meta").textContent = `${entry.model} · ${new Date(entry.analyzedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${entry.tookS ? ` · ${entry.tookS} s` : ""}${entry.hidden != null && !entry.basic ? ` · 🔒 ${entry.hidden} hidden from AI` : ""} · v${chrome.runtime.getManifest().version}`;
   $("result").classList.remove("hidden");
   $("footer").classList.remove("hidden");
   $("analyzeBtn").textContent = "Re-analyze";
-  if (aiActive(await getSettings())) openChat(key, () => chatContext(key, entry));
+  const settings = await getSettings();
+  if (aiActive(settings)) openChat(key, () => chatContext(key, entry));
   else if (typeof closeChat === "function") closeChat(); // chat.js loads after this file
+  drawAiHint(settings, entry);
+}
+
+// Without AI everything works from the ticket and NetBox; this card says what the AI would add, for when you want it.
+function drawAiHint(settings, entry) {
+  const box = $("aiHint");
+  if (!entry.basic) return box.classList.add("hidden");
+  const off = settings.aiEnabled === false;
+  if (/AI failed/.test(entry.model || "")) {
+    box.replaceChildren(h("div", { class: "label" }, "✨ The AI couldn't answer this time"),
+      h("p", {}, "This brief comes straight from the ticket and NetBox, and everything below works. Try again for the full AI brief and chat."),
+      h("div", { class: "ai-hint-actions" }, h("button", { class: "mini", onclick: () => analyze(true) }, "Try the AI again")));
+    return box.classList.remove("hidden");
+  }
+  box.replaceChildren(
+    h("div", { class: "label" }, "✨ Want more depth or help?"),
+    h("p", {}, "This brief comes straight from the ticket and NetBox. With AI ", off ? "on" : "set up", " you also get:"),
+    h("ul", {},
+      h("li", {}, "a written summary, probable cause, cautions and next steps for this exact ticket"),
+      h("li", {}, "a power-down check that reads every comment, not just keywords"),
+      h("li", {}, "answers to your questions about the ticket (\"what does Xid 79 mean?\", \"draft a reply\")"),
+      h("li", {}, "help picking the replacement part and filling in the RMA")),
+    h("div", { class: "ai-hint-actions" },
+      h("button", { class: "mini", onclick: () => chrome.runtime.openOptionsPage() }, off ? "Turn on AI in Settings" : "Add an AI key in Settings"),
+      h("span", { class: "muted" }, off ? "Settings → Start → Use AI" : "No key? Make a free Gemini key in 2 minutes: Settings → Getting started")));
+  box.classList.remove("hidden");
 }
 
 // ---------- NetBox + Podcrawler ----------
@@ -788,7 +816,11 @@ async function setupRma(key, entry) {
   let aiRun = 0;
   const aiPrefill = async () => {
     const settings = await getSettings();
-    if (!aiActive(settings)) return;
+    if (!aiActive(settings)) {
+      Object.assign(state, { aiOff: true, aiNote: "💡 With AI on (Settings → Start → Use AI), it also reads the comments to fill in the part, serials and description." });
+      return draw();
+    }
+    state.aiOff = false;
     const run = ++aiRun;
     Object.assign(state, { aiBusy: true, aiNote: "" });
     draw();
@@ -1180,9 +1212,9 @@ async function renderEmpty(tab, settings) {
     h("p", { class: "muted" }, onJira
       ? "You're in Jira, but no ticket is open here. Click a ticket in your queue and its brief appears here."
       : `This panel works on the Jira ticket in the current tab. Switch to a ticket tab (or open one) and ${settings.autoRun ? "the brief appears here automatically" : "click Analyze"}.`),
-    noKey && h("div", { class: "empty-setup" }, "⚙️ First, add your AI key: ",
+    noKey && h("div", { class: "empty-setup" }, "✨ Optional: add an AI key for a written brief, chat and RMA help: ",
       h("button", { class: "link", onclick: () => chrome.runtime.openOptionsPage() }, "open Settings"),
-      h("div", { class: "muted" }, "No key yet? You can make a free Gemini key yourself in 2 minutes, no IT request: Settings → Getting started.")),
+      h("div", { class: "muted" }, "Everything else works without it. No key yet? Make a free Gemini key in 2 minutes, no IT request: Settings → Getting started.")),
     tickets.length && h("div", { class: "empty-tabs" },
       h("div", { class: "label" }, "Tickets open in your tabs"),
       ...tickets.map(({ t, key }) => h("button", { class: "empty-tab", title: t.title, onclick: () => goTo(t) },

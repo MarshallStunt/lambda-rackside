@@ -396,6 +396,11 @@ button.link.part-open { margin-left: auto; display: inline-flex; gap: 3px; }
 .stock-list li.here b { color: var(--ok); }
 
 /* ---------- Chat (ask the AI) ---------- */
+.ai-hint { margin-top: 12px; background: var(--card); border: 1px dashed var(--border); border-radius: 8px; padding: 10px 12px; font-size: 12.5px; }
+.ai-hint p { margin: 2px 0 4px; color: var(--muted); }
+.ai-hint ul { margin: 0 0 8px 18px; padding: 0; }
+.ai-hint-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.ai-hint-actions button.mini { margin-left: 0; }
 .chat { margin-top: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
 .chat-head { display: flex; align-items: center; margin-bottom: 6px; }
 .chat-head .label { margin: 0; }

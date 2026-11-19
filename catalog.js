@@ -317,8 +317,9 @@ function renderCatalog(box, state, actions) {
     })));
   }
   // Numbers found in the ticket are shown for reference: the ticket's part number is usually the chassis.
-  box.appendChild(h("div", { class: "part-hint" }, "The part number on a ticket is usually the server/chassis, not the part to swap. Use ",
-    h("b", {}, "✨ Ask AI which part"), " or search below to find it."));
+  box.appendChild(h("div", { class: "part-hint" }, "The part number on a ticket is usually the server/chassis, not the part to swap. ",
+    actions.onAsk ? ["Use ", h("b", {}, "✨ Ask AI which part"), " or search below to find it."]
+      : ["BMC health shows the failed part; or search below. (With AI on in Settings, it can pick the part for you.)"]));
   if (state.matches.length) {
     box.appendChild(h("div", { class: "part-sub" }, "Part numbers mentioned in the ticket"));
     box.appendChild(h("div", { class: "parts" }, state.matches.map((p) => partRow(p, state, actions))));

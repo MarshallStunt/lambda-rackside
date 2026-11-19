@@ -14,7 +14,7 @@
       <h2 class="guide-title">Getting started (5 minutes)</h2>
       <ol class="guide-steps">
         <li>
-          <b>Get an AI API key.</b> The assistant needs a key for one AI service. We recommend <b>Anthropic Claude</b>: fast and accurate for tickets. OpenAI or Google Gemini also work.
+          <b>Get an AI API key (optional).</b> Without one, the panel still works from the ticket and NetBox (server, power-down by keywords, BMC, parts, RMA); a key adds the written brief, chat and RMA help. We recommend <b>Anthropic Claude</b>: fast and accurate for tickets. OpenAI or Google Gemini also work.
           <details class="gemini-now">
             <summary>Start today: get a free Gemini key yourself (no IT request)</summary>
             <p>You can make a Google Gemini key in 2 minutes with your Lambda Google account, and use it until IT gives you a Claude or OpenAI (ChatGPT) key.</p>
@@ -212,7 +212,7 @@
     <div class="field">
       <label for="serverField">Server name field (optional)</label>
       <input id="serverField" type="text" placeholder="e.g. Hostname or customfield_10234">
-      <div class="hint">If your tickets have a dedicated field, its value is used exactly. Otherwise the AI finds it in the text.</div>
+      <div class="hint">If your tickets have a dedicated field, its value is used exactly. Otherwise it's found in the text (by the AI, or by pattern when the AI is off).</div>
     </div>
 
     <div class="field">

@@ -367,7 +367,7 @@ function rmaForm(state, actions) {
         h("b", {}, r.key), ` · ${r.status} · ${r.summary}`,
         r.serials?.length ? h("div", { class: "muted mono" }, `Already on it: ${r.serials.join(", ")}`) : null)),
       h("div", {}, "No new RMA will be created: these details are added to it as an internal comment.")) : null,
-    h("div", { class: "rma-note" }, `Pre-filled from the ticket, the BMC, the catalog and the AI. Check every value: you confirm them before anything is ${state.existing?.length ? "added" : "created"}.`),
+    h("div", { class: "rma-note" }, `Pre-filled from the ticket, the BMC, the catalog${state.aiOff ? "" : " and the AI"}. Check every value: you confirm them before anything is ${state.existing?.length ? "added" : "created"}.`),
     state.aiBusy && h("div", { class: "muted" }, h("span", { class: "spinner" }), "✨ Reading the ticket and BMC to fill in the rest…"),
     state.aiNote && h("div", { class: "muted rma-ainote" }, state.aiNote),
     state.rmaSnNote && h("div", { class: "rma-serialnote" }, state.rmaSnNote),

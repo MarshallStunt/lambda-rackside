@@ -137,7 +137,7 @@ function renderBrief(root, r, opts) {
     const done = () => r.next_steps.filter((_, i) => checks.has(i)).length;
     const counter = h("span", { class: "count" }, `${done()}/${r.next_steps.length}`);
     root.appendChild(h("section", { class: "card", id: "steps" },
-      h("div", { class: "label" }, "✅ Next steps ", counter, h("span", { class: "pill" }, `${r.confidence} confidence`)),
+      h("div", { class: "label" }, "✅ Next steps ", counter, h("span", { class: "pill" }, opts.basic ? "standard checklist" : `${r.confidence} confidence`)),
       h("ol", { class: "checklist" }, r.next_steps.map((s, i) => {
         const caution = /^caution:/i.test(s);
         const box = h("input", { type: "checkbox" });

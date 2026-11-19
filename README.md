@@ -145,7 +145,9 @@ Settings → Start → **Use AI** turns the AI off. With it off, or with no key 
 - **Server** names (Lambda-style hostnames like `ord01-cl01-hgx-0084`), serials, IPs with their role (BMC, host…), site, rack and RU.
 - **Power-down** by keywords: the newest line that forbids it ("do not power down", "customer workload running") or allows it ("ok to power down", "node is drained", "downtime approved") decides, and that line is shown. Nothing found means *Confirm before powering down*.
 - The **job type** (GPU, DIMM, PSU, fan, NIC, drive…), the summary as the request, and the last comments as history.
-- **NetBox, ping, BMC health/console/power, parts, stock and the RMA form work as usual.** No chat, no "Ask AI which part", and the RMA form isn't pre-filled by the AI.
+- A **standard checklist** for the job (confirm the server in NetBox, power-down approval if needed, BMC health, swap, RMA, Podcrawler rescan, update the ticket).
+- **NetBox (by hostname and chassis S/N), ping, BMC health/console/power, parts, stock, the RMA form and Copy as Jira comment work as usual.** The RMA form is filled from the ticket, BMC and catalog.
+- Not without AI: chat, "Ask AI which part", and the AI reading comments to fill in more of the RMA. A small **✨ Want more depth or help?** card at the bottom says what the AI adds, with a button to Settings.
 
 If the AI is on but fails (quota, network, wrong key), the panel shows this basic brief instead of an error.
 
