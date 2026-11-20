@@ -440,6 +440,13 @@ async function show(key, entry, fresh = false) {
 function drawAiHint(settings, entry) {
   const box = $("aiHint");
   if (!entry.basic) return box.classList.add("hidden");
+  // AI on, Auto, and no chat signed in: say where to sign in. Rackside notices the sign-in and redoes the brief.
+  if (/No AI chat signed in/.test(entry.model || "")) {
+    box.replaceChildren(h("div", { class: "label" }, "✨ Sign in to an AI chat for the full brief"),
+      h("p", {}, "The AI uses a chat you're signed in to in Chrome, no API key. Sign in to one of these (Claude first if you have it); this ticket gets the AI brief as soon as you're in."),
+      h("div", { class: "ai-hint-actions" }, ...Object.values(AI_CHATS).map((c) => h("button", { class: "mini", onclick: () => openUrl(`https://${c.site}`) }, `${c.label} ↗`))));
+    return box.classList.remove("hidden");
+  }
   if (/AI failed/.test(entry.model || "")) {
     box.replaceChildren(h("div", { class: "label" }, "✨ The AI couldn't answer this time"),
       h("p", {}, "This brief comes straight from the ticket and NetBox, and everything below works. Try again for the full AI brief and chat."),
@@ -1259,9 +1266,11 @@ async function renderEmpty(tab, settings) {
     h("p", { class: "muted" }, onJira
       ? "You're in Jira, but no ticket is open here. Click a ticket in your queue and its brief appears here."
       : `This panel works on the Jira ticket in the current tab. Switch to a ticket tab (or open one) and ${settings.autoRun ? "the brief appears here automatically" : "click Analyze"}.`),
-    settings.aiEnabled !== false && h("div", { class: "empty-setup" }, `✨ The AI answers through ${aiChatName(settings)} in this browser, no API key: sign in at `,
-      h("button", { class: "link", onclick: () => openUrl(`https://${AI_CHATS[settings.aiChat].site}`) }, AI_CHATS[settings.aiChat].site),
-      " once.", h("div", { class: "muted" }, "Everything else works without it. Change the chat, or turn the AI off, in Settings → Start.")),
+    aiActive(settings) && h("div", { class: "empty-setup" }, `✨ The AI answers through ${aiChatName(settings)}, signed in as you in this browser (no API key).`,
+      h("div", { class: "muted" }, "Change the chat, or turn the AI off, in Settings → Start.")),
+    aiNeedsSignIn(settings) && h("div", { class: "empty-setup" }, "✨ Optional: sign in to an AI chat in Chrome for a written brief, chat and RMA help (no API key): ",
+      ...Object.values(AI_CHATS).flatMap((c, i) => [i ? " · " : "", h("button", { class: "link", onclick: () => openUrl(`https://${c.site}`) }, c.site)]),
+      h("div", { class: "muted" }, "Everything else works without it.")),
     tickets.length && h("div", { class: "empty-tabs" },
       h("div", { class: "label" }, "Tickets open in your tabs"),
       ...tickets.map(({ t, key }) => h("button", { class: "empty-tab", title: t.title, onclick: () => goTo(t) },
@@ -1355,7 +1364,7 @@ async function analyze(force = false) {
     if (basic) {
       brief = basicBrief(issue.data, text);
       if (settings.podcrawlerStep) brief = ensurePodcrawlerStep(brief);
-      model = aiError ? "AI failed · basic brief" : "AI off · basic brief";
+      model = aiError ? "AI failed · basic brief" : settings.aiEnabled === false ? "AI off · basic brief" : "No AI chat signed in · basic brief";
     }
     // Exact field mappings (if configured) win over the model's extraction.
     if (mapped.server) brief.server_names = mapped.server.split(/\s*,\s*/).filter(Boolean);
@@ -1459,6 +1468,20 @@ $("osBtn").addEventListener("click", async () => {
   toast("Lambda OS isn't reachable. Open a ticket in Rackside from Lambda OS once to link them again.");
 });
 chrome.storage.onChanged.addListener((c, area) => area === "local" && c.peerLambdaOS && showOsButton());
+
+// You signed in to (or out of) an AI chat: a ticket showing the "sign in" card gets the AI brief right away, and
+// the start screen updates.
+let chatCookieTimer;
+chrome.cookies?.onChanged.addListener(({ cookie, removed }) => {
+  const chat = Object.values(AI_CHATS).find((c) => c.cookie.test(cookie.name) && new URL(c.cookieUrl).hostname.endsWith(cookie.domain.replace(/^\./, "")));
+  if (!chat) return;
+  clearTimeout(chatCookieTimer);
+  chatCookieTimer = setTimeout(async () => {
+    const settings = await getSettings();
+    if (!current.key) return refresh();
+    if (!removed && aiActive(settings) && /No AI chat signed in/.test(lastResult?.key === current.key ? lastResult.model || "" : "")) analyze(true);
+  }, 1500);
+});
 
 // Settings → Use AI changed: show the open ticket again the new way (AI brief, or the basic one).
 chrome.storage.onChanged.addListener((ch, area) => {

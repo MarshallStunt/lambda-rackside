@@ -1,6 +1,6 @@
 # Lambda Rackside: privacy policy
 
-*Last updated: November 20, 2026*
+*Last updated: November 21, 2026*
 
 Lambda Rackside is a Chrome extension for Lambda's Datacenter Operations team. It shows a brief for the Jira ticket open in the current tab, using the systems the user already has access to. This page explains what data it uses and where that data goes.
 
@@ -9,6 +9,7 @@ Lambda Rackside is a Chrome extension for Lambda's Datacenter Operations team. I
 - **NetBox** (server, location, inventory and journal records), with the user's NetBox login in Chrome or a read-only API token the user enters.
 - **The parts catalog** (a Google Sheet), with the user's Google login in Chrome.
 - **The server's BMC** (health, event log), only when the user clicks *Check health* and pastes the BMC password, through a helper program installed on the user's computer.
+- **Whether the user is signed in to Claude, ChatGPT or Gemini**: the extension checks that a login cookie for those sites exists in Chrome, to pick the chat to use. It doesn't read, copy or send the cookies.
 
 ## Where data goes
 - **The AI chat the user picks** (Claude at claude.ai, ChatGPT at chatgpt.com, or Gemini at gemini.google.com), when the AI is on: the extension opens that site in a minimized window with the user's own sign-in, sends the ticket and related server details there so the chat can write the brief and answer questions, and reads the answer back from the page. It goes to the user's own account on that site and stays in their chat history there, under that site's terms. With *Privacy mode* on, names, IP addresses, serial numbers and other values are replaced with placeholders before anything is sent. With the AI off, nothing is sent to any AI.

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Lambda Rackside",
   "short_name": "Rackside",
-  "version": "1.36.0",
+  "version": "1.37.0",
   "description": "DC Ops ticket assistant for Jira: power-down safety, server location, NetBox, BMC health, parts and stock, RMAs, with optional AI through your browser chat.",
   "permissions": [
     "sidePanel",
@@ -13,6 +13,7 @@
     "tabs",
     "nativeMessaging",
     "clipboardWrite",
+    "cookies",
     "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [

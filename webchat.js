@@ -188,7 +188,8 @@ const LambdaWebChat = (() => {
   // Waits until the chat can take a question. If it needs the person (sign in, a human check), it shows them the
   // window, says so in Ask AI ({ wait: text }), keeps watching, and comes back to the panel by itself once the chat
   // is ready ({ wait: null }). Rackside never types into a sign-in or check; the person does that.
-  async function* ready(site, w, signal) {
+  // reveal false (Auto, with another signed-in chat to try): never shows the window; throws 'login' / 'check' instead.
+  async function* ready(site, w, signal, reveal_ = true) {
     const S = SITES[site], t0 = Date.now();
     const home = await chrome.windows.getCurrent().then((w) => ({ windowId: w.id })).catch(() => null); // the side panel's window
     let shown = null;
@@ -202,6 +203,8 @@ const LambdaWebChat = (() => {
         if (shown) { comeBack(w, home); yield { wait: null }; await sleep(800); }
         return true;
       }
+      if (!reveal_ && (st.s === 'login' || st.s === 'check')) throw fail(st.s, st.s === 'login' ? `You're signed out of ${S.name}.` : `${S.name} wants to check you're human.`);
+      if (!reveal_ && st.s === 'loading' && Date.now() - t0 > 20000) throw fail('timeout', `${S.name} didn't load.`);
       if ((st.s === 'login' || st.s === 'check') && shown !== st.s) {
         shown = st.s; reveal(w);
         yield { wait: st.s === 'login'
@@ -233,7 +236,7 @@ const LambdaWebChat = (() => {
   // Same interface as the API providers: yields { text } / { full } / { note } chunks.
   // conversation: an id for a back-and-forth (a ticket's chat), so follow-ups go to the same chat; leave it out for a
   // one-off request (brief, part search, RMA help), which starts a new chat.
-  async function* stream({ site = 'claude', system, user, history = [], signal, conversation }) {
+  async function* stream({ site = 'claude', system, user, history = [], signal, conversation, reveal = true }) {
     conv = conversation || Math.random().toString(36).slice(2);
     const S = SITES[site]; if (!S) throw new Error('Unknown chat site.');
     if (typeof chrome === 'undefined' || !chrome.scripting || !chrome.storage?.session) throw new Error('Asking through the browser chat works inside the extension only.');
@@ -248,12 +251,12 @@ const LambdaWebChat = (() => {
       else {
         yield { note: `Opening ${S.name}…` };
         w = await openChat(site);
-        if (!(yield* ready(site, w, signal))) return;
+        if (!(yield* ready(site, w, signal, reveal))) return;
         const earlier = history.length ? `EARLIER IN THIS CONVERSATION:\n${history.map(h => `[${h.role}] ${h.content}`).join('\n\n')}\n\n` : '';
         text = `${system}\n\n${earlier}${user}`;
       }
       if (signal?.aborted) return;
-      if (follow && !(yield* ready(site, w, signal))) return; // still signed in? (it may have expired since)
+      if (follow && !(yield* ready(site, w, signal, reveal))) return; // still signed in? (it may have expired since)
       yield { note: `Sending to ${S.name}…` };
       const sent = await run(w.tabId, pageSend, [site, text]);
       if (!sent?.ok) throw fail('layout', `Couldn't find the ${S.name} message box. ${S.name} may have changed its page; pick another chat in Settings → Start, or update Rackside.`);
@@ -295,9 +298,9 @@ const LambdaWebChat = (() => {
 
   // Runs one request and returns the whole answer. onNote(text) gets progress and "sign in" messages (null clears
   // them); onText(full) gets the answer so far while it's written.
-  async function ask({ site, system, user, history = [], conversation, signal, onNote, onText }) {
+  async function ask({ site, system, user, history = [], conversation, signal, onNote, onText, reveal = true }) {
     let full = '';
-    for await (const c of stream({ site, system, user, history, conversation, signal })) {
+    for await (const c of stream({ site, system, user, history, conversation, signal, reveal })) {
       if (c.wait !== undefined) onNote?.(c.wait, true);
       else if (c.note) onNote?.(c.note, false);
       if (c.full != null) full = c.full;

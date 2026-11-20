@@ -22,6 +22,7 @@ function setupCommand(script) {
 async function load() {
   const s = await getSettings();
   $("aiChat").value = s.aiChat;
+  showSignedIn();
   $("privacyMode").checked = s.privacyMode;
   $("privacyWords").value = s.privacyWords;
   $("privacyKinds").replaceChildren(...Object.entries(PRIVACY_KINDS).map(([k, label]) => {
@@ -56,9 +57,22 @@ async function load() {
   document.querySelectorAll(".ext-id").forEach((el) => (el.textContent = chrome.runtime.id));
 }
 
+// Which chats you're signed in to in this browser (what Auto picks from).
+async function showSignedIn() {
+  const on = await signedInChats();
+  $("aiSignedIn").textContent = "Signed in here: " + Object.entries(AI_CHATS).map(([id, c]) => `${c.label} ${on.includes(id) ? "✓" : "—"}`).join(" · ")
+    + (on.length ? `. Auto uses ${AI_CHATS[on[0]].label}.` : ". Sign in to one of them for the AI; until then the panel shows the basic brief.");
+}
+chrome.cookies?.onChanged.addListener(({ cookie }) => {
+  if (Object.values(AI_CHATS).some((c) => c.cookie.test(cookie.name))) showSignedIn();
+});
+
 // A real one-line request through the chat picked on the page (saved or not).
 $("testAi").addEventListener("click", async () => {
   const s = { ...(await getSettings()), ...formSettings() };
+  s.aiChats = s.aiChat === "auto" ? await signedInChats() : [s.aiChat];
+  s.aiSite = s.aiChats[0] || null;
+  if (!s.aiSite) return showMsg("You're not signed in to Claude, ChatGPT or Gemini in this browser. Sign in to one, then try again.", true);
   showMsg(`Asking ${aiChatName(s)} in a minimized window… (if it asks you to sign in, its window comes up)`);
   $("testAi").disabled = true;
   const started = Date.now();

@@ -11,7 +11,7 @@ A side panel for Datacenter Operations. Open a Jira ticket and get a one-glance 
 ## Quick start
 1. **Download it:** the latest version is in the [RackSide folder on Google Drive](https://drive.google.com/drive/folders/1Q8PssE0dSU0UFvriIVnHjL34avM0QjWT) (`lambda-rackside-<version>.zip`). Download it and double-click it to unzip; you get a `lambda-rackside` folder. If you use git, clone this repo instead.
 2. **Load the extension:** `chrome://extensions` → turn on **Developer mode** → **Load unpacked** → select the `lambda-rackside` folder. Pin it and click its icon to open the side panel. Settings opens on first install.
-3. **Sign in to Claude** at [claude.ai](https://claude.ai) in Chrome, once (optional: without it, or with Settings → *Use AI* off, you get a basic brief; see *Working without AI*). ChatGPT or Gemini work too: pick one in Settings → Start → *Chat to use*. No API key.
+3. **Be signed in to an AI chat** in Chrome: [Claude](https://claude.ai), [ChatGPT](https://chatgpt.com) or [Gemini](https://gemini.google.com). Rackside finds the one you're signed in to by itself. No API key. Optional: without one, or with Settings → *Use AI* off, you get a basic brief (see *Working without AI*).
 4. **Install the helper** (ping, BMC). Settings → *Getting started* → **Copy** the setup command and run it: on a Mac in **Terminal**, on Windows in **PowerShell**. It asks before installing anything.
 5. Open any Jira ticket.
 
@@ -19,7 +19,7 @@ A side panel for Datacenter Operations. Open a Jira ticket and get a one-glance 
 
 ## The panel, top to bottom
 - **🆕 Update banner** when a newer version is on GitHub (only for people with access to the repo; everyone else gets new versions from the RackSide Drive folder, see *Updates* above).
-- **No ticket in this tab?** A start screen says to go to a Jira ticket tab, lists the tickets already open in your tabs (click one to go there), and which chat the AI uses (sign in to it once).
+- **No ticket in this tab?** A start screen says to go to a Jira ticket tab, lists the tickets already open in your tabs (click one to go there), and which chat the AI uses (or where to sign in, if none).
 - **Switching tabs keeps your work:** come back to a ticket and it's exactly as you left it (RMA form in progress, BMC login, chat and the question you were typing, scroll position), with nothing fetched again. Only **Re-analyze** reads the ticket, NetBox and ping again; the ping and NetBox cards also have their own refresh buttons. An RMA draft survives closing the panel too, until Chrome closes.
 - **Header** (stays on screen): ticket key, **Re-analyze**, Settings, a progress line (✓ Ticket · ✓ AI brief · ✓ NetBox · ✕ Ping 1/2 up) and a jump bar with every section in its colour (📋 Request · 🖥️ Server · 🔧 BMC · ✅ Steps · 🧰 Parts · 🔁 RMA · 🕘 History · 🗄️ NetBox).
 - **Ticket strip**: job type, status, priority; 👤 assignee and 📝 reporter (click a name to message them on Slack).
@@ -111,7 +111,7 @@ Settings → **Privacy**: before anything is sent to the AI, names, emails, phon
 
 ## Settings
 Five tabs, Save always at the bottom:
-- **Start**: getting started, **updates**, **Use AI** (on/off), **Chat to use** (Claude, ChatGPT or Gemini; **Test it** asks a one-line question and shows the answer and how long it took), and **back up / load settings** (a JSON file; the NetBox token only if you tick the box, so a file can be shared with the team).
+- **Start**: getting started, **updates**, **Use AI** (on/off), **Chat to use** (Auto, or Claude, ChatGPT or Gemini; it shows which ones you're signed in to; **Test it** asks a one-line question and shows the answer and how long it took), and **back up / load settings** (a JSON file; the NetBox token only if you tick the box, so a file can be shared with the team).
 - **Servers & BMC**: ping helper, BMC username and web address, NetBox & Podcrawler, parts catalog link.
 - **Privacy**: privacy mode.
 - **Jira & AI**: self-hosted Jira hosts, server/location fields, people (Slack app or browser), team context and custom AI instructions.
@@ -148,12 +148,15 @@ Settings → Start → **Use AI** turns the AI off. With it off, nothing is sent
 If the AI is on but fails (signed out, a usage limit, the chat page changed), the panel shows this basic brief instead of an error, with **Try the AI again** and **Show Claude** buttons.
 
 ## The AI: your browser chat, no API key
-The AI answers through the chat you're signed in to in Chrome: **Claude** (claude.ai, the default), **ChatGPT** (chatgpt.com) or **Gemini** (gemini.google.com), picked in Settings → Start → *Chat to use*. There is no API key.
+The AI answers through the chat you're signed in to in Chrome: **Claude** (claude.ai), **ChatGPT** (chatgpt.com) or **Gemini** (gemini.google.com). There is no API key.
+- **Auto** (the default, Settings → Start → *Chat to use*): Rackside checks Chrome's login cookies for those three sites (nothing is sent anywhere) and uses the first one you're signed in to, in that order. Settings shows which ones it found. If a chat turns out to be signed out, asks for a human check, is out of messages or doesn't load, Auto moves on to the next signed-in chat without bothering you; only the last one left comes up for you to sign in.
+- Signed in to none: the panel shows the basic brief with a **Sign in to an AI chat** card (Claude, ChatGPT, Gemini buttons). As soon as you sign in, the ticket gets the AI brief by itself.
+- You can also pick one chat in Settings; then that chat is always used and asks you to sign in when needed.
 - Rackside opens that chat in **one minimized window** (never in your tabs, reused for every request), pastes the request (the ticket, with values hidden when Privacy mode is on, plus what the brief needs), presses Send, and reads the answer back off the page as it's written. The brief fills in as the chat writes.
 - If the chat asks you to **sign in** or to **confirm you're human**, its window comes up and the panel says so; do that there, and Rackside goes back to the panel and carries on by itself. Rackside never types into a sign-in page or a check.
 - One request at a time goes through the window; others wait their turn. Each brief, chat question and RMA suggestion is its own chat in your history on that site.
 - It reads the chat page itself, so if the site changes its layout the AI can stop working until Rackside is updated (the basic brief still works). The chat site's own usage limits apply.
-- Updating from 1.35 or earlier removes the API keys, models and provider you had saved.
+- Updating from 1.35 or earlier removes the API keys, models and provider you had saved. Updating from 1.36.0 moves the old Claude default to Auto.
 
 ## Data and security
 - With the AI on, the ticket (and for chat questions, matching catalog rows and stock) goes to the chat you picked, under your own account there, and stays in your chat history on that site. Privacy mode hides sensitive values before anything is sent.

@@ -2,18 +2,31 @@
 // contact, commands that run in the extension's folder, the update check, and the AI requests (sent through the
 // chat you're signed in to in this browser, see webchat.js).
 
-// The chats the AI can use. No API key: you sign in to the site in this browser once.
+// The chats the AI can use, in the order Auto tries them. No API key: you sign in to the site in this browser once.
+// cookie: the login cookie that says you're signed in there (read with chrome.cookies, nothing is sent anywhere).
 const AI_CHATS = {
-  claude:  { label: "Claude", site: "claude.ai" },
-  chatgpt: { label: "ChatGPT", site: "chatgpt.com" },
-  gemini:  { label: "Gemini", site: "gemini.google.com" }
+  claude:  { label: "Claude", site: "claude.ai", cookieUrl: "https://claude.ai/", cookie: /^sessionKey$/ },
+  chatgpt: { label: "ChatGPT", site: "chatgpt.com", cookieUrl: "https://chatgpt.com/", cookie: /^__Secure-next-auth\.session-token(\.\d+)?$/ },
+  gemini:  { label: "Gemini", site: "gemini.google.com", cookieUrl: "https://gemini.google.com/", cookie: /^(__Secure-1PSID|SID)$/ }
 };
+
+// The chats you're signed in to in this browser, in Auto's order. A login cookie can outlive the session; a chat
+// that turns out to be signed out is skipped when it's used (generateStructured / generateText).
+async function signedInChats() {
+  if (!chrome.cookies?.getAll) return Object.keys(AI_CHATS); // no cookies permission: try them all
+  const out = [];
+  for (const [id, c] of Object.entries(AI_CHATS)) {
+    const jar = await chrome.cookies.getAll({ url: c.cookieUrl }).catch(() => []);
+    if (jar.some((k) => c.cookie.test(k.name) && k.value && (!k.expirationDate || k.expirationDate * 1000 > Date.now()))) out.push(id);
+  }
+  return out;
+}
 // Settings from before 1.36 that held API keys and models: removed from storage on update (background.js).
 const OLD_AI_SETTINGS = ["provider", "anthropicKey", "openaiKey", "geminiKey", "localBaseUrl", "localApiKey", "models", "speed", "apiKey", "model"];
 
 const DEFAULTS = {
   aiEnabled: true,      // off: the brief comes from patterns in the ticket (no AI); NetBox, BMC, ping and parts still work
-  aiChat: "claude",    // claude | chatgpt | gemini: the chat you're signed in to that answers (AI_CHATS)
+  aiChat: "auto",      // auto (the first chat you're signed in to: Claude, ChatGPT, Gemini) | claude | chatgpt | gemini
   jiraHosts: [],       // extra self-hosted Jira hostnames, e.g. ["jira.example.com"]
   privacyMode: false,  // swap sensitive values for placeholders before sending anything to the AI
   privacyHide: { people: true, contact: true, network: true, serials: true },
@@ -73,13 +86,17 @@ if (typeof document !== "undefined") {
 async function getSettings() {
   const stored = await chrome.storage.local.get(Object.keys(DEFAULTS));
   const s = { ...DEFAULTS, ...stored, privacyHide: { ...DEFAULTS.privacyHide, ...(stored.privacyHide || {}) } };
-  if (!AI_CHATS[s.aiChat]) s.aiChat = DEFAULTS.aiChat;
+  if (s.aiChat !== "auto" && !AI_CHATS[s.aiChat]) s.aiChat = DEFAULTS.aiChat;
+  // aiChats: the chats to try, in order. Auto: the ones you're signed in to (none: the AI waits for a sign-in).
+  // A chat you picked yourself is always tried, and asks you to sign in if needed.
+  s.aiChats = s.aiChat === "auto" ? await signedInChats() : [s.aiChat];
+  s.aiSite = s.aiChats[0] || null;
   return s;
 }
 
-// "Claude", "ChatGPT" or "Gemini": the chat that answers.
+// "Claude", "ChatGPT" or "Gemini": the chat that answers (the one that last answered, after a fall-through).
 function aiChatName(s) {
-  return (AI_CHATS[s.aiChat] || AI_CHATS.claude).label;
+  return AI_CHATS[s.aiSite]?.label || "an AI chat";
 }
 
 // Nothing to set up any more (no key): the AI is used whenever it's switched on. Kept for older callers.
@@ -87,7 +104,9 @@ function missingConfig() {
   return "";
 }
 
-const aiActive = (s) => s.aiEnabled !== false;
+// On, and a chat to use: with Auto and no chat signed in, the panel shows the basic brief and asks you to sign in.
+const aiActive = (s) => s.aiEnabled !== false && !!s.aiSite;
+const aiNeedsSignIn = (s) => s.aiEnabled !== false && !s.aiSite;
 
 // Keyboard shortcuts as shown in hints (Mac vs Windows/Linux).
 const IS_MAC = /mac/i.test(navigator.userAgentData?.platform || navigator.platform || "");
@@ -299,16 +318,38 @@ function aiModelLabel(s) {
   return `${aiChatName(s)} (your browser chat)`;
 }
 
+// Runs one request on the first chat that works. With Auto, a chat that's signed out, asking for a human check,
+// out of messages or not loading is skipped quietly for the next one you're signed in to; only the last one left
+// shows its window for you to sign in. Sets s.aiSite to the chat that answered.
+const SKIP_TO_NEXT = new Set(["login", "check", "limit", "timeout", "layout", "closed"]);
+async function askChats(s, opts) {
+  if (typeof LambdaWebChat === "undefined") throw new Error("The AI works in the side panel and Settings only.");
+  const chats = s.aiChats?.length ? s.aiChats : [s.aiChat !== "auto" ? s.aiChat : "claude"];
+  const skipped = [];
+  for (let i = 0; i < chats.length; i++) {
+    const last = i === chats.length - 1;
+    s.aiSite = chats[i];
+    try {
+      const text = await LambdaWebChat.ask({ ...opts, site: chats[i], reveal: last,
+        onNote: (t, needsYou) => aiNoteHook?.(t, needsYou) });
+      if (skipped.length) aiNoteHook?.(null, true);
+      return text;
+    } catch (e) {
+      if (last || !SKIP_TO_NEXT.has(e.code)) throw skipped.length ? new Error(`${e.message} (also tried ${skipped.join(", ")})`) : e;
+      skipped.push(`${AI_CHATS[chats[i]].label}: ${e.message}`);
+      aiNoteHook?.(`${AI_CHATS[chats[i]].label} isn't available (${e.message}). Trying ${AI_CHATS[chats[i + 1]].label}…`, true);
+    }
+  }
+}
+
 // A JSON answer: the schema goes in the request, the answer is read from the chat's code block.
 // onPartial(obj) gets the partly written result while the chat writes. Returns { result, model }.
 async function generateStructured(s, { system, user, schema, onPartial, signal }) {
-  if (typeof LambdaWebChat === "undefined") throw new Error("The AI works in the side panel and Settings only.");
   let last = 0;
-  const text = await LambdaWebChat.ask({
-    site: s.aiChat, signal,
+  const text = await askChats(s, {
+    signal,
     system: `${system}\n\nAnswer with ONLY one JSON object in a single \`\`\`json code block written right in your reply (not in an artifact, canvas or file), no text before or after it. Do not use tools or web search. It must match this JSON Schema:\n${JSON.stringify(schema)}`,
     user,
-    onNote: (t, needsYou) => aiNoteHook?.(t, needsYou),
     onText: (full) => {
       if (!onPartial || Date.now() - last < 150) return;
       last = Date.now();
@@ -323,10 +364,8 @@ async function generateStructured(s, { system, user, schema, onPartial, signal }
 // Free text. messages: [{ role: "user" | "assistant", content }], the last one is the question.
 // conversation: an id (a ticket's chat) so follow-ups continue the same chat. Returns { text, model }.
 async function generateText(s, { system, messages, conversation, signal }) {
-  if (typeof LambdaWebChat === "undefined") throw new Error("The AI works in the side panel and Settings only.");
   const history = messages.slice(0, -1), user = messages.at(-1)?.content || "";
-  const text = (await LambdaWebChat.ask({ site: s.aiChat, system: `${system}\nWrite the answer right in your reply (no artifact, canvas or file).`, user, history, conversation, signal,
-    onNote: (t, needsYou) => aiNoteHook?.(t, needsYou) })).replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const text = (await askChats(s, { system: `${system}\nWrite the answer right in your reply (no artifact, canvas or file).`, user, history, conversation, signal })).replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   if (!text) throw new Error(`${aiChatName(s)} returned an empty answer.`);
   return { text, model: aiModelLabel(s) };
 }

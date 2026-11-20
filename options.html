@@ -14,7 +14,7 @@
       <h2 class="guide-title">Getting started (5 minutes)</h2>
       <ol class="guide-steps">
         <li>
-          <b>Sign in to Claude in this browser (optional).</b> Open <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> and sign in once; ChatGPT or Gemini work too (pick one under <b>AI</b> below). No API key needed. Without it the panel still works from the ticket and NetBox (server, power-down by keywords, BMC, parts, RMA); the AI adds the written brief, chat and RMA help.
+          <b>Be signed in to an AI chat in this browser (optional).</b> <a href="https://claude.ai" target="_blank" rel="noopener">Claude</a>, <a href="https://chatgpt.com" target="_blank" rel="noopener">ChatGPT</a> or <a href="https://gemini.google.com" target="_blank" rel="noopener">Gemini</a>: Rackside finds the one you're signed in to by itself. No API key needed. Without it the panel still works from the ticket and NetBox (server, power-down by keywords, BMC, parts, RMA); the AI adds the written brief, chat and RMA help.
         </li>
         <li>
           <b>Install the helper tools</b> (ping, BMC).
@@ -43,10 +43,11 @@
     <div class="field">
       <label for="aiChat">Chat to use</label>
       <div class="row">
-        <select id="aiChat"><option value="claude">Claude (claude.ai)</option><option value="chatgpt">ChatGPT (chatgpt.com)</option><option value="gemini">Gemini (gemini.google.com)</option></select>
+        <select id="aiChat"><option value="auto">Auto: the chat you're signed in to (recommended)</option><option value="claude">Claude (claude.ai)</option><option value="chatgpt">ChatGPT (chatgpt.com)</option><option value="gemini">Gemini (gemini.google.com)</option></select>
         <button id="testAi" type="button">Test it</button>
       </div>
-      <div class="hint">No API key: sign in to that site in this browser once. Rackside opens the chat in one minimized window (never in your tabs, reused for every request), sends the ticket there (with names, IPs and serials replaced when Privacy mode is on), and shows the answer in the panel as it's written. If the chat asks you to sign in or to confirm you're human, its window comes up for you to do that, and Rackside carries on by itself afterwards. Each request becomes a chat in your history on that site. Rackside reads the chat page itself, so if the site changes its layout the AI can stop working until Rackside is updated; the basic brief still works.</div>
+      <div id="aiSignedIn" class="hint"></div>
+      <div class="hint"><b>Auto</b> uses the first chat you're signed in to in Chrome (Claude, then ChatGPT, then Gemini), and moves on to the next one if a chat is signed out or out of messages. No API key: sign in to the site in this browser once. Rackside opens the chat in one minimized window (never in your tabs, reused for every request), sends the ticket there (with names, IPs and serials replaced when Privacy mode is on), and shows the answer in the panel as it's written. If the chat asks you to sign in or to confirm you're human, its window comes up for you to do that, and Rackside carries on by itself afterwards. Each request becomes a chat in your history on that site. Rackside reads the chat page itself, so if the site changes its layout the AI can stop working until Rackside is updated; the basic brief still works.</div>
     </div>
 
     <h2 data-tab="start">Back up or move your settings</h2>

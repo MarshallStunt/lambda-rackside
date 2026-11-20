@@ -49,6 +49,10 @@ chrome.runtime.onInstalled.addListener((details) => {
   chrome.storage.local.remove(["slackToken", "slackUrl", "slackDir", "opVault", "opAccount", "opTag", "opFallbackItem", "bmcLogin", "bmcHealthAuto"]);
   // The AI moved to your browser chat in 1.36.0 (no API key): forget the old keys, models and provider.
   chrome.storage.local.remove(OLD_AI_SETTINGS);
+  // 1.37.0 picks the chat you're signed in to (Auto). 1.36.0 saved "claude" as its default: move that to Auto.
+  if (details.reason === "update" && details.previousVersion === "1.36.0") {
+    chrome.storage.local.get("aiChat").then(({ aiChat }) => aiChat === "claude" && chrome.storage.local.set({ aiChat: "auto" }));
+  }
   // The parts catalog moved to a new sheet in 1.16.0: move anyone still on an old one.
   chrome.storage.local.get("catalogUrl").then(({ catalogUrl }) => {
     if (/14oA5dZCMhyGyqI0yXAniO8rNkANbIh8mtG8NI3dz1n4|1iBI8eWuq0Ks3L6YQb2r8F8kLK4QSoyBt/.test(catalogUrl || "")) chrome.storage.local.remove("catalogUrl");
