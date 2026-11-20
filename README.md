@@ -2,7 +2,7 @@
 
 *The DC Ops ticket assistant.*
 
-A side panel for Datacenter Operations. Open a Jira ticket and get a one-glance work brief: is it safe to power down, what to do, where the server is, its NetBox record and BMC health, the right replacement part (from the server's own NetBox inventory, matched to the catalog) with its Lambda P/N and where it's in stock, and an AI you can ask follow-up questions. Works on Mac and Windows, with Claude, OpenAI, Gemini or a local model.
+A side panel for Datacenter Operations. Open a Jira ticket and get a one-glance work brief: is it safe to power down, what to do, where the server is, its NetBox record and BMC health, the right replacement part (from the server's own NetBox inventory, matched to the catalog) with its Lambda P/N and where it's in stock, and an AI you can ask follow-up questions. Works on Mac and Windows. The AI answers through the Claude, ChatGPT or Gemini chat you're signed in to in Chrome: no API key.
 
 **Help, bugs or feature ideas:** message the developer, [Hadi Khodja on Slack](https://lambda.slack.com/team/U0AAMLCUCUA). The link is also at the bottom of the panel and of Settings.
 
@@ -11,20 +11,15 @@ A side panel for Datacenter Operations. Open a Jira ticket and get a one-glance 
 ## Quick start
 1. **Download it:** the latest version is in the [RackSide folder on Google Drive](https://drive.google.com/drive/folders/1Q8PssE0dSU0UFvriIVnHjL34avM0QjWT) (`lambda-rackside-<version>.zip`). Download it and double-click it to unzip; you get a `lambda-rackside` folder. If you use git, clone this repo instead.
 2. **Load the extension:** `chrome://extensions` → turn on **Developer mode** → **Load unpacked** → select the `lambda-rackside` folder. Pin it and click its icon to open the side panel. Settings opens on first install.
-3. **Get an AI key** (optional: without one, or with Settings → *Use AI* off, you get a basic brief; see *Working without AI*). Claude (Anthropic) is recommended; OpenAI (ChatGPT) and Gemini also work. Settings → **Start** → *Getting started* has a ready-to-send request for IT.
-   - **Start today without IT: a free Gemini key you make yourself** (2 minutes), until IT gives you a Claude or OpenAI key:
-     1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and sign in with your **Lambda Google account** (@lambdal.com or @lambda.ai). Accept the terms if asked.
-     2. Click **Create API key** (if asked for a project: *Create API key in new project*), then **Copy**. The key starts with `AIza`.
-     3. In Settings click **Use Gemini here** (it selects **Gemini Flash-Lite (latest)**, fast and with the free tier's highest limits), paste the key in *Gemini API key*, **Save**, then **Test AI**.
-   - ⚠️ On the free tier Google may use what you send to improve its products, and there's a daily limit: turn on **Privacy mode** (Settings → Privacy) while you use it. When your Claude or OpenAI key arrives, switch the provider, paste it, and delete the Gemini key at aistudio.google.com/apikey. If AI Studio says it isn't available for your account, it's turned off for Lambda accounts: use the IT request. Don't use a personal Google account for work tickets.
+3. **Sign in to Claude** at [claude.ai](https://claude.ai) in Chrome, once (optional: without it, or with Settings → *Use AI* off, you get a basic brief; see *Working without AI*). ChatGPT or Gemini work too: pick one in Settings → Start → *Chat to use*. No API key.
 4. **Install the helper** (ping, BMC). Settings → *Getting started* → **Copy** the setup command and run it: on a Mac in **Terminal**, on Windows in **PowerShell**. It asks before installing anything.
-5. **Paste the key**, click **Load models**, then **Save**. Open any Jira ticket.
+5. Open any Jira ticket.
 
 **Updates:** new versions are posted in the [RackSide folder on Google Drive](https://drive.google.com/drive/folders/1Q8PssE0dSU0UFvriIVnHjL34avM0QjWT): download the zip, unzip it to the same place (replacing the old `lambda-rackside` folder; settings are kept), then click ↻ on Lambda Rackside in `chrome://extensions`. If you have access to the private GitHub repo, the extension also checks it every 2 hours and on every Analyze / Re-analyze, with your GitHub login. A new version shows a red **NEW** badge on the toolbar icon, one notification (click it to open Settings → Updates), and a 🆕 banner at the top of the panel; **Later** hides the banner and badge until the next version. **⬇️ Update now** downloads it with your GitHub login, the helper puts it in your lambda-rackside folder (`git pull` if it's a git copy, otherwise the new files over the old ones) and updates itself, and the extension reloads. *Update by hand* has a command that does the same from Terminal/PowerShell (or a ZIP link). Settings → Start → **Check for updates** checks right away. Needs helper 1.6.0 or later: older helpers update by hand once. The footer of the panel shows the version.
 
 ## The panel, top to bottom
 - **🆕 Update banner** when a newer version is on GitHub (only for people with access to the repo; everyone else gets new versions from the RackSide Drive folder, see *Updates* above).
-- **No ticket in this tab?** A start screen says to go to a Jira ticket tab, lists the tickets already open in your tabs (click one to go there), and mentions that an AI key is optional.
+- **No ticket in this tab?** A start screen says to go to a Jira ticket tab, lists the tickets already open in your tabs (click one to go there), and which chat the AI uses (sign in to it once).
 - **Switching tabs keeps your work:** come back to a ticket and it's exactly as you left it (RMA form in progress, BMC login, chat and the question you were typing, scroll position), with nothing fetched again. Only **Re-analyze** reads the ticket, NetBox and ping again; the ping and NetBox cards also have their own refresh buttons. An RMA draft survives closing the panel too, until Chrome closes.
 - **Header** (stays on screen): ticket key, **Re-analyze**, Settings, a progress line (✓ Ticket · ✓ AI brief · ✓ NetBox · ✕ Ping 1/2 up) and a jump bar with every section in its colour (📋 Request · 🖥️ Server · 🔧 BMC · ✅ Steps · 🧰 Parts · 🔁 RMA · 🕘 History · 🗄️ NetBox).
 - **Ticket strip**: job type, status, priority; 👤 assignee and 📝 reporter (click a name to message them on Slack).
@@ -116,7 +111,7 @@ Settings → **Privacy**: before anything is sent to the AI, names, emails, phon
 
 ## Settings
 Five tabs, Save always at the bottom:
-- **Start**: getting started, **updates**, **Use AI** (on/off), AI provider, key, model (**Test AI** sends a one-line question with your key and model and shows the answer and how long it took), response speed, and **back up / load settings** (a JSON file; API keys and the NetBox token only if you tick the box, so a file can be shared with the team).
+- **Start**: getting started, **updates**, **Use AI** (on/off), **Chat to use** (Claude, ChatGPT or Gemini; **Test it** asks a one-line question and shows the answer and how long it took), and **back up / load settings** (a JSON file; the NetBox token only if you tick the box, so a file can be shared with the team).
 - **Servers & BMC**: ping helper, BMC username and web address, NetBox & Podcrawler, parts catalog link.
 - **Privacy**: privacy mode.
 - **Jira & AI**: self-hosted Jira hosts, server/location fields, people (Slack app or browser), team context and custom AI instructions.
@@ -142,7 +137,7 @@ Browsers can't ping or talk to BMCs, so a small Python helper does it through Ch
 - **BMC web address**: `https://{ip}` by default; change it if your BMCs use http or a port.
 
 ## Working without AI
-Settings → Start → **Use AI** turns the AI off. With it off, or with no key yet, nothing is sent to an AI and the brief is built from the ticket's own text:
+Settings → Start → **Use AI** turns the AI off. With it off, nothing is sent to an AI and the brief is built from the ticket's own text:
 - **Server** names (Lambda-style hostnames like `ord01-cl01-hgx-0084`), serials, IPs with their role (BMC, host…), site, rack and RU.
 - **Power-down** by keywords: the newest line that forbids it ("do not power down", "customer workload running") or allows it ("ok to power down", "node is drained", "downtime approved") decides, and that line is shown. Nothing found means *Confirm before powering down*.
 - The **job type** (GPU, DIMM, PSU, fan, NIC, drive…), the summary as the request, and the last comments as history.
@@ -150,25 +145,21 @@ Settings → Start → **Use AI** turns the AI off. With it off, or with no key 
 - **NetBox (by hostname and chassis S/N), ping, BMC health/console/power, parts, stock, the RMA form and Copy as Jira comment work as usual.** The RMA form is filled from the ticket, BMC and catalog.
 - Not without AI: chat, "Ask AI which part", and the AI reading comments to fill in more of the RMA. A small **✨ Want more depth or help?** card at the bottom says what the AI adds, with a button to Settings.
 
-If the AI is on but fails (quota, network, wrong key), the panel shows this basic brief instead of an error.
+If the AI is on but fails (signed out, a usage limit, the chat page changed), the panel shows this basic brief instead of an error, with **Try the AI again** and **Show Claude** buttons.
 
-## Speed and AI providers
-| Provider | What you need |
-|---|---|
-| Anthropic (Claude) | API key from console.anthropic.com |
-| OpenAI | API key from platform.openai.com |
-| Google Gemini | API key from aistudio.google.com/apikey: **you can make it yourself** with your Lambda Google account, no IT request (see *Quick start*) |
-| Local – LM Studio | LM Studio server running (default `http://localhost:1234/v1`) |
-| Local – Ollama | `ollama serve` (default `http://localhost:11434/v1`); on a 403 set `OLLAMA_ORIGINS=chrome-extension://*` |
-
-- *Auto* picks a fast, accurate model (newest Claude Sonnet, a GPT "mini", Gemini Flash-Lite latest). Choosing Gemini selects **Gemini Flash-Lite (latest)** (`gemini-flash-lite-latest`) unless you pick another model. **Response speed** (Fast by default) controls how long it thinks; on Fast, Claude's thinking is turned off where the model allows it.
-- Briefs use structured output (JSON schema), stream in, and the Claude system prompt is cached between tickets. Local models: use a 7B+ instruct model.
+## The AI: your browser chat, no API key
+The AI answers through the chat you're signed in to in Chrome: **Claude** (claude.ai, the default), **ChatGPT** (chatgpt.com) or **Gemini** (gemini.google.com), picked in Settings → Start → *Chat to use*. There is no API key.
+- Rackside opens that chat in **one minimized window** (never in your tabs, reused for every request), pastes the request (the ticket, with values hidden when Privacy mode is on, plus what the brief needs), presses Send, and reads the answer back off the page as it's written. The brief fills in as the chat writes.
+- If the chat asks you to **sign in** or to **confirm you're human**, its window comes up and the panel says so; do that there, and Rackside goes back to the panel and carries on by itself. Rackside never types into a sign-in page or a check.
+- One request at a time goes through the window; others wait their turn. Each brief, chat question and RMA suggestion is its own chat in your history on that site.
+- It reads the chat page itself, so if the site changes its layout the AI can stop working until Rackside is updated (the basic brief still works). The chat site's own usage limits apply.
+- Updating from 1.35 or earlier removes the API keys, models and provider you had saved.
 
 ## Data and security
-- With a cloud provider, the ticket (and for chat questions, matching catalog rows and stock) goes to that provider; with a local model nothing leaves your computer. Privacy mode hides sensitive values either way.
+- With the AI on, the ticket (and for chat questions, matching catalog rows and stock) goes to the chat you picked, under your own account there, and stays in your chat history on that site. Privacy mode hides sensitive values before anything is sent.
 - BMC passwords are only pasted, kept in memory until the panel closes, and sent only to the BMC (private IPs, HTTPS) through the local helper. Never saved, never sent to the AI.
 - NetBox, the catalog and Slack are only read. The update check only reads the version number from the GitHub repo; **Update now** downloads the repo and writes only to the extension's own folder (found from its ID) and the helper's install folder. The one write the extension can make is the confirmed BMC power action.
-- API keys are stored in Chrome's local extension storage.
+- No API keys. The NetBox token, if you set one, is stored in Chrome's local extension storage.
 - ⚠️ Some NetBox journal entries contain BMC passwords in plain text ("PWD - …"). The extension strips those lines, but they should be removed from NetBox.
 
 ## Project layout
@@ -179,7 +170,8 @@ If the AI is on but fails (quota, network, wrong key), the panel shows this basi
 | `sidepanel.html` / `sidepanel.js` | The panel: reads the ticket, runs the AI (or the basic brief) and all lookups; "want more depth" AI card; At a glance, jump bar, update banner, start screen |
 | `render.js` | Draws the brief (folded sections, At a glance), ping and NetBox cards |
 | `analysis.js` | Brief schema, AI instructions, the basic brief without AI (hostnames, IPs, power-down keywords, checklist), Jira comment |
-| `common.js` | Settings, appearance (theme, layout), developer contact, folder commands (setup, update), update check, AI providers (Claude, OpenAI, Gemini, local), streaming |
+| `common.js` | Settings, appearance (theme, layout), developer contact, folder commands (setup, update), update check, AI requests (brief as JSON, chat text) |
+| `webchat.js` | The AI through your browser chat: drives Claude, ChatGPT or Gemini in one minimized window (sign-in and human checks handed to you) |
 | `chat.js` | Ask-the-AI box, part search planning |
 | `catalog.js` | Parts catalog: load, match, search, the server's own parts matched by MPN / GPU model, catalog rows for the AI, Parts card |
 | `netbox.js` | NetBox lookup by hostname and chassis S/N, journal, modules, FastTrack scan (the server's parts), spare stock |

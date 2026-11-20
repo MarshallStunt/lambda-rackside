@@ -1,4 +1,4 @@
-// Side panel: detects the open Jira issue, reads it (fields, comments, history), asks the selected AI provider
+// Side panel: detects the open Jira issue, reads it (fields, comments, history), asks the AI (your browser chat)
 // for a DC Ops brief and renders it, then runs the lookups around it: NetBox, ping, BMC, parts catalog & stock.
 // Sections: Jira · AI · progress line & jump links · status, toast, people · NetBox · parts · BMC · reachability ·
 // RMA · update banner · start screen (no ticket) · analyze & tab events.
@@ -155,7 +155,7 @@ async function analyzeIssue(settings, key, issueText, onPartial, privacy) {
   });
   let brief = normalizeDc(privacy.restore(result));
   if (settings.podcrawlerStep) brief = ensurePodcrawlerStep(brief);
-  return { brief, model: `${providerLabel(settings.provider)} · ${model}` };
+  return { brief, model };
 }
 
 // ---------- Progress line ----------
@@ -352,6 +352,12 @@ function setStatus(msg, kind = "") {
   el.appendChild(document.createTextNode(msg));
 }
 
+// The browser chat needs you (sign in, or a "confirm you're human" check): its window comes up, and this says why
+// at the top of the panel until the chat is ready again; then Rackside carries on by itself.
+aiNoteHook = (text, needsYou) => {
+  if (needsYou) setStatus(text ? `⏳ ${text}` : "", "loading");
+};
+
 function hideResult() {
   $("result").classList.add("hidden");
   $("footer").classList.add("hidden");
@@ -434,24 +440,24 @@ async function show(key, entry, fresh = false) {
 function drawAiHint(settings, entry) {
   const box = $("aiHint");
   if (!entry.basic) return box.classList.add("hidden");
-  const off = settings.aiEnabled === false;
   if (/AI failed/.test(entry.model || "")) {
     box.replaceChildren(h("div", { class: "label" }, "✨ The AI couldn't answer this time"),
       h("p", {}, "This brief comes straight from the ticket and NetBox, and everything below works. Try again for the full AI brief and chat."),
-      h("div", { class: "ai-hint-actions" }, h("button", { class: "mini", onclick: () => analyze(true) }, "Try the AI again")));
+      h("div", { class: "ai-hint-actions" }, h("button", { class: "mini", onclick: () => analyze(true) }, "Try the AI again"),
+        h("button", { class: "mini", onclick: () => LambdaWebChat.show() }, `Show ${aiChatName(settings)}`)));
     return box.classList.remove("hidden");
   }
   box.replaceChildren(
     h("div", { class: "label" }, "✨ Want more depth or help?"),
-    h("p", {}, "This brief comes straight from the ticket and NetBox. With AI ", off ? "on" : "set up", " you also get:"),
+    h("p", {}, "This brief comes straight from the ticket and NetBox. With AI on you also get:"),
     h("ul", {},
       h("li", {}, "a written summary, probable cause, cautions and next steps for this exact ticket"),
       h("li", {}, "a power-down check that reads every comment, not just keywords"),
       h("li", {}, "answers to your questions about the ticket (\"what does Xid 79 mean?\", \"draft a reply\")"),
       h("li", {}, "help picking the replacement part and filling in the RMA")),
     h("div", { class: "ai-hint-actions" },
-      h("button", { class: "mini", onclick: () => chrome.runtime.openOptionsPage() }, off ? "Turn on AI in Settings" : "Add an AI key in Settings"),
-      h("span", { class: "muted" }, off ? "Settings → Start → Use AI" : "No key? Make a free Gemini key in 2 minutes: Settings → Getting started")));
+      h("button", { class: "mini", onclick: () => chrome.runtime.openOptionsPage() }, "Turn on AI in Settings"),
+      h("span", { class: "muted" }, `Settings → Start → Use AI. No API key: it answers through ${aiChatName(settings)}, signed in as you in this browser.`)));
   box.classList.remove("hidden");
 }
 
@@ -1247,16 +1253,15 @@ async function renderEmpty(tab, settings) {
     await chrome.tabs.update(t.id, { active: true });
     await chrome.windows.update(t.windowId, { focused: true });
   };
-  const noKey = settings.aiEnabled !== false && missingConfig(settings);
   $("empty").replaceChildren(...[
     h("div", { class: "empty-icon" }, "🎫"),
     h("h2", {}, onJira ? "Open a ticket to start" : "Go to a Jira ticket tab to start"),
     h("p", { class: "muted" }, onJira
       ? "You're in Jira, but no ticket is open here. Click a ticket in your queue and its brief appears here."
       : `This panel works on the Jira ticket in the current tab. Switch to a ticket tab (or open one) and ${settings.autoRun ? "the brief appears here automatically" : "click Analyze"}.`),
-    noKey && h("div", { class: "empty-setup" }, "✨ Optional: add an AI key for a written brief, chat and RMA help: ",
-      h("button", { class: "link", onclick: () => chrome.runtime.openOptionsPage() }, "open Settings"),
-      h("div", { class: "muted" }, "Everything else works without it. No key yet? Make a free Gemini key in 2 minutes, no IT request: Settings → Getting started.")),
+    settings.aiEnabled !== false && h("div", { class: "empty-setup" }, `✨ The AI answers through ${aiChatName(settings)} in this browser, no API key: sign in at `,
+      h("button", { class: "link", onclick: () => openUrl(`https://${AI_CHATS[settings.aiChat].site}`) }, AI_CHATS[settings.aiChat].site),
+      " once.", h("div", { class: "muted" }, "Everything else works without it. Change the chat, or turn the AI off, in Settings → Start.")),
     tickets.length && h("div", { class: "empty-tabs" },
       h("div", { class: "label" }, "Tickets open in your tabs"),
       ...tickets.map(({ t, key }) => h("button", { class: "empty-tab", title: t.title, onclick: () => goTo(t) },
@@ -1311,8 +1316,8 @@ async function analyze(force = false) {
     setStep("ticket", "ok");
     let brief, model, basic = !useAi, aiError = "";
     if (useAi) {
-    setStep("ai", "run", providerLabel(settings.provider).replace(/ \(.*\)/, ""));
-    const tick = setInterval(() => current.key === key && setStep("ai", "run", `${Math.round((Date.now() - started) / 1000)} s`), 1000);
+    setStep("ai", "run", aiChatName(settings));
+    const tick = setInterval(() => current.key === key && setStep("ai", "run", `${aiChatName(settings)} · ${Math.round((Date.now() - started) / 1000)} s`), 1000);
     // Show the brief as it is written. The power verdict stays "checking" until the AI has moved past it.
     // Redraw at most every 250 ms, and only when the brief actually changed: no flicker while it streams.
     let drawn = "", pending = null, timer = null, streamDone = false;
@@ -1350,7 +1355,7 @@ async function analyze(force = false) {
     if (basic) {
       brief = basicBrief(issue.data, text);
       if (settings.podcrawlerStep) brief = ensurePodcrawlerStep(brief);
-      model = aiError ? "AI failed · basic brief" : settings.aiEnabled === false ? "AI off · basic brief" : "No AI key · basic brief";
+      model = aiError ? "AI failed · basic brief" : "AI off · basic brief";
     }
     // Exact field mappings (if configured) win over the model's extraction.
     if (mapped.server) brief.server_names = mapped.server.split(/\s*,\s*/).filter(Boolean);

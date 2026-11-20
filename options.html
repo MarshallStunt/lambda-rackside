@@ -14,26 +14,7 @@
       <h2 class="guide-title">Getting started (5 minutes)</h2>
       <ol class="guide-steps">
         <li>
-          <b>Get an AI API key (optional).</b> Without one, the panel still works from the ticket and NetBox (server, power-down by keywords, BMC, parts, RMA); a key adds the written brief, chat and RMA help. We recommend <b>Anthropic Claude</b>: fast and accurate for tickets. OpenAI or Google Gemini also work.
-          <details class="gemini-now">
-            <summary>Start today: get a free Gemini key yourself (no IT request)</summary>
-            <p>You can make a Google Gemini key in 2 minutes with your Lambda Google account, and use it until IT gives you a Claude or OpenAI (ChatGPT) key.</p>
-            <ol>
-              <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in with your <b>Lambda Google account</b> (@lambdal.com or @lambda.ai). Accept the terms if it asks.</li>
-              <li>Click <b>Create API key</b>. If it asks for a project, choose <b>Create API key in new project</b>.</li>
-              <li>Click <b>Copy</b> next to the key. It starts with <code>AIza</code>.</li>
-              <li>Click <button id="useGemini" type="button" class="mini">Use Gemini here</button> (it selects <b>Gemini Flash-Lite (latest)</b>: fast, with the free tier's highest limits), paste the key in <b>Gemini API key</b> below, then <b>Save</b>. <b>Test AI</b> checks that it works.</li>
-            </ol>
-            <p class="hint">⚠️ On the free tier Google may use what you send to improve its products, and there's a daily limit. Turn on <b>Privacy mode</b> (Privacy tab) so names, IPs and serials are replaced before anything is sent. When IT gives you a Claude or OpenAI key, switch the provider and paste it: you can delete the Gemini key at aistudio.google.com/apikey.</p>
-            <p class="hint">If the page says AI Studio isn't available for your account, it's turned off for Lambda accounts: use the IT request below instead. Don't use a personal Google account for work tickets.</p>
-          </details>
-          <details>
-            <summary>I don't have a key: ask IT</summary>
-            <p>Send this to IT (Slack or a ticket). You can change the provider if your team uses a different one.</p>
-            <textarea id="itRequest" class="mono" rows="7" readonly></textarea>
-            <div class="row"><button id="copyItRequest" type="button">Copy request</button></div>
-            <p class="hint">Treat the key like a password: paste it only into this page, never into Slack, Jira or email.</p>
-          </details>
+          <b>Sign in to Claude in this browser (optional).</b> Open <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> and sign in once; ChatGPT or Gemini work too (pick one under <b>AI</b> below). No API key needed. Without it the panel still works from the ticket and NetBox (server, power-down by keywords, BMC, parts, RMA); the AI adds the written brief, chat and RMA help.
         </li>
         <li>
           <b>Install the helper tools</b> (ping, BMC).
@@ -47,85 +28,25 @@
           <div class="hint">It finds the <code>lambda-rackside</code> folder wherever you put it (Desktop, Downloads…). If it says the folder wasn't found, type <code class="os-mac">bash</code><code class="os-win">powershell -ExecutionPolicy Bypass -File</code> and a space, drag <code class="os-mac">setup.sh</code><code class="os-win">setup.ps1</code> from the folder into the window, add a space and the extension ID (<code class="ext-id"></code>), then press Enter.</div>
         </li>
         <li>
-          <b>Paste your key below</b>, click <b>Load models</b>, then <b>Save</b>. Open any Jira ticket and click the Lambda icon in Chrome's toolbar.
+          Open any Jira ticket and click the Lambda icon in Chrome's toolbar.
         </li>
       </ol>
     </section>
 
-    <h2 data-tab="start">AI provider</h2>
+    <h2 data-tab="start">AI</h2>
 
     <div class="field">
       <label><input id="aiEnabled" type="checkbox"> <b>Use AI</b> for the brief, chat and RMA help</label>
-      <div class="hint">Off: no key needed and nothing is sent to an AI. The brief is built from the ticket's own text (hostname, chassis S/N, IPs, rack, comments, and a power-down check by keywords), and the server is checked in NetBox as usual. NetBox, BMC health, ping, parts and RMA all still work. Click Save to apply; an open ticket updates right away.</div>
+      <div class="hint">Off: nothing is sent to an AI. The brief is built from the ticket's own text (hostname, chassis S/N, IPs, rack, comments, and a power-down check by keywords), and the server is checked in NetBox as usual. NetBox, BMC health, ping, parts and RMA all still work. Click Save to apply; an open ticket updates right away.</div>
     </div>
 
     <div class="field">
-      <label for="provider">Provider</label>
-      <select id="provider"></select>
-    </div>
-
-    <div class="provider-box" data-provider="anthropic">
-      <div class="field">
-        <label for="anthropicKey">Anthropic API key</label>
-        <input id="anthropicKey" type="password" placeholder="sk-ant-…" autocomplete="off">
-        <div class="hint">Get one at console.anthropic.com.</div>
-      </div>
-    </div>
-
-    <div class="provider-box" data-provider="openai">
-      <div class="field">
-        <label for="openaiKey">OpenAI API key</label>
-        <input id="openaiKey" type="password" placeholder="sk-…" autocomplete="off">
-        <div class="hint">Get one at platform.openai.com.</div>
-      </div>
-    </div>
-
-    <div class="provider-box" data-provider="gemini">
-      <div class="field">
-        <label for="geminiKey">Gemini API key</label>
-        <input id="geminiKey" type="password" placeholder="AIza…" autocomplete="off">
-        <div class="hint">Make one yourself (free, no IT request) at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> with your Lambda Google account: see <i>Getting started</i> above.</div>
-      </div>
-    </div>
-
-    <div class="provider-box" data-provider="local">
-      <div class="field">
-        <label for="localBaseUrl">Local server URL (OpenAI-compatible)</label>
-        <div class="row">
-          <input id="localBaseUrl" type="text" placeholder="http://localhost:1234/v1">
-          <button type="button" data-preset="lmstudio">LM Studio</button>
-          <button type="button" data-preset="ollama">Ollama</button>
-        </div>
-        <div class="hint">
-          LM Studio: start the server in the Developer tab (default port 1234).<br>
-          Ollama: run <code>ollama serve</code>. If you get a 403, set <code>OLLAMA_ORIGINS=chrome-extension://*</code> and restart Ollama.<br>
-          Use a model that's good at following JSON instructions (e.g. 7B+ instruct models).
-        </div>
-      </div>
-      <div class="field">
-        <label for="localApiKey">API key (optional)</label>
-        <input id="localApiKey" type="password" placeholder="Leave empty unless your server requires one" autocomplete="off">
-      </div>
-    </div>
-
-    <div class="field">
-      <label for="model">Model</label>
+      <label for="aiChat">Chat to use</label>
       <div class="row">
-        <select id="model"><option value="">Auto</option></select>
-        <button id="loadModels" type="button">Load models</button>
-        <button id="testAi" type="button">Test AI</button>
+        <select id="aiChat"><option value="claude">Claude (claude.ai)</option><option value="chatgpt">ChatGPT (chatgpt.com)</option><option value="gemini">Gemini (gemini.google.com)</option></select>
+        <button id="testAi" type="button">Test it</button>
       </div>
-      <div class="hint"><b>Test AI</b> sends a one-line question with your key and model and shows the answer and how long it took. Click “Load models” to pick a model. “Auto” picks a fast, accurate one: the newest <b>Claude Sonnet</b>, a <b>GPT mini</b>, or <b>Gemini Flash</b>.</div>
-    </div>
-
-    <div class="field">
-      <label for="speed">Response speed</label>
-      <select id="speed">
-        <option value="fast">Fast — answers in seconds (recommended)</option>
-        <option value="balanced">Balanced — thinks a bit more</option>
-        <option value="thorough">Thorough — slowest, for tricky tickets</option>
-      </select>
-      <div class="hint">How long the AI may think before answering. Fast is accurate for almost all tickets; the power-down check always stays strict.</div>
+      <div class="hint">No API key: sign in to that site in this browser once. Rackside opens the chat in one minimized window (never in your tabs, reused for every request), sends the ticket there (with names, IPs and serials replaced when Privacy mode is on), and shows the answer in the panel as it's written. If the chat asks you to sign in or to confirm you're human, its window comes up for you to do that, and Rackside carries on by itself afterwards. Each request becomes a chat in your history on that site. Rackside reads the chat page itself, so if the site changes its layout the AI can stop working until Rackside is updated; the basic brief still works.</div>
     </div>
 
     <h2 data-tab="start">Back up or move your settings</h2>
@@ -136,8 +57,8 @@
         <button id="importSettings" type="button">📂 Load settings from a file</button>
         <input id="importFile" type="file" accept=".json,application/json" class="hidden">
       </div>
-      <label><input id="exportSecrets" type="checkbox"> Include my API keys and NetBox token (keep that file private)</label>
-      <div id="backupMsg" class="hint">Keep a copy, move to a new computer, or share your team's setup (Jira fields, team notes, catalog link) without the keys. Saves what you last saved with <b>Save</b>. Loading a file changes only the settings in it.</div>
+      <label><input id="exportSecrets" type="checkbox"> Include my NetBox token (keep that file private)</label>
+      <div id="backupMsg" class="hint">Keep a copy, move to a new computer, or share your team's setup (Jira fields, team notes, catalog link) without the token. Saves what you last saved with <b>Save</b>. Loading a file changes only the settings in it.</div>
     </div>
 
     <h2 id="updatesHead" data-tab="start">Updates</h2>
@@ -155,7 +76,7 @@
 
     <div class="field">
       <label><input id="privacyMode" type="checkbox"> <b>Privacy mode:</b> hide sensitive data from the AI</label>
-      <div class="hint">Before a ticket is sent, the values below are replaced with placeholders like <code>[IP-1]</code> or <code>[PERSON-2]</code>. The AI works with the placeholders, and the real values are put back into the brief on this computer, so you still see them. Passwords, tokens and API keys found in tickets are always removed in privacy mode. Not needed with a Local model: nothing leaves your computer.</div>
+      <div class="hint">Before a ticket is sent, the values below are replaced with placeholders like <code>[IP-1]</code> or <code>[PERSON-2]</code>. The AI works with the placeholders, and the real values are put back into the brief on this computer, so you still see them. Passwords, tokens and API keys found in tickets are always removed in privacy mode.</div>
       <div id="privacyKinds" class="privacy-kinds"></div>
     </div>
     <div class="field">
@@ -348,6 +269,7 @@
 
   <script src="icons.js"></script>
   <script src="common.js"></script>
+  <script src="webchat.js"></script>
   <script src="analysis.js"></script>
   <script src="ping.js"></script>
   <script src="netbox.js"></script>

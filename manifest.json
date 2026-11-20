@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Lambda Rackside",
   "short_name": "Rackside",
-  "version": "1.35.1",
-  "description": "DC Ops ticket assistant for Jira: power-down safety, server location, NetBox, BMC health, parts and stock, RMAs, with AI.",
+  "version": "1.36.0",
+  "description": "DC Ops ticket assistant for Jira: power-down safety, server location, NetBox, BMC health, parts and stock, RMAs, with optional AI through your browser chat.",
   "permissions": [
     "sidePanel",
     "storage",
@@ -18,17 +18,15 @@
   "host_permissions": [
     "https://*.atlassian.net/*",
     "https://netbox.prod.lambdalabs.cloud/*",
-    "https://api.anthropic.com/*",
-    "https://api.openai.com/*",
-    "https://generativelanguage.googleapis.com/*",
+    "https://claude.ai/*",
+    "https://chatgpt.com/*",
+    "https://gemini.google.com/*",
     "https://docs.google.com/*",
     "https://app.slack.com/*",
     "https://*.googleusercontent.com/*",
     "https://github.com/*",
     "https://raw.githubusercontent.com/*",
-    "https://codeload.github.com/*",
-    "http://localhost/*",
-    "http://127.0.0.1/*"
+    "https://codeload.github.com/*"
   ],
   "optional_host_permissions": [
     "https://*/*",

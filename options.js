@@ -1,64 +1,17 @@
-// Settings page: load/save settings, model list, connection tests (AI, ping helper, NetBox, catalog), and tabs.
+// Settings page: load/save settings, connection tests (AI chat, ping helper, NetBox, catalog), and tabs.
 
 const $ = (id) => document.getElementById(id);
-let models = {}; // per-provider chosen model, edited in this form before saving
 
 function showMsg(text, isError = false) {
   $("msg").textContent = text;
   $("msg").style.color = isError ? "var(--err)" : "";
 }
 
-function ensureModelOption(id, label) {
-  if (!id || [...$("model").options].some((o) => o.value === id)) return;
-  const opt = document.createElement("option");
-  opt.value = id;
-  opt.textContent = label || id;
-  $("model").appendChild(opt);
-}
-
-function resetModelSelect(selected) {
-  $("model").innerHTML = '<option value="">Auto</option>';
-  ensureModelOption(selected);
-  $("model").value = selected || "";
-}
-
-function showProvider(p) {
-  document.querySelectorAll(".provider-box").forEach((el) => {
-    el.classList.toggle("hidden", el.dataset.provider !== p);
-  });
-  // Gemini starts on Flash-Lite (latest) unless you picked another model; Save keeps it.
-  if (p === "gemini" && !models.gemini) models.gemini = GEMINI_DEFAULT_MODEL;
-  resetModelSelect(models[p]);
-  if (p === "gemini") [...$("model").options].find((o) => o.value === GEMINI_DEFAULT_MODEL)?.replaceChildren("Gemini Flash-Lite (latest) · recommended");
-}
-
 // Read the form into a settings object (without saving).
 function formSettings() {
-  return {
-    provider: $("provider").value,
-    anthropicKey: $("anthropicKey").value.trim(),
-    openaiKey: $("openaiKey").value.trim(),
-    geminiKey: $("geminiKey").value.trim(),
-    localBaseUrl: $("localBaseUrl").value.trim(),
-    localApiKey: $("localApiKey").value.trim(),
-    models: { ...models, [$("provider").value]: $("model").value },
-    speed: $("speed").value
-  };
+  return { aiChat: $("aiChat").value };
 }
 
-// Local servers on non-localhost addresses need an extra Chrome permission.
-async function ensureLocalPermission(baseUrl) {
-  let origin;
-  try {
-    origin = new URL(baseUrl).origin;
-  } catch {
-    throw new Error("Local server URL is not a valid URL.");
-  }
-  const host = new URL(baseUrl).hostname;
-  if (host === "localhost" || host === "127.0.0.1") return;
-  const ok = await chrome.permissions.request({ origins: [`${origin}/*`] });
-  if (!ok) throw new Error(`Chrome permission for ${origin} was denied.`);
-}
 
 // script: "setup" or "ping-helper/install" (.sh on Mac, .ps1 on Windows), run from the lambda-rackside folder.
 function setupCommand(script) {
@@ -68,16 +21,7 @@ function setupCommand(script) {
 
 async function load() {
   const s = await getSettings();
-  models = { ...s.models };
-  $("provider").replaceChildren(); // load() runs again after loading a settings file
-  for (const [id, p] of Object.entries(PROVIDERS)) {
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = p.label;
-    $("provider").appendChild(opt);
-  }
-  $("provider").value = s.provider;
-  $("speed").value = s.speed;
+  $("aiChat").value = s.aiChat;
   $("privacyMode").checked = s.privacyMode;
   $("privacyWords").value = s.privacyWords;
   $("privacyKinds").replaceChildren(...Object.entries(PRIVACY_KINDS).map(([k, label]) => {
@@ -87,11 +31,6 @@ async function load() {
     l.append(box, ` ${label}`);
     return l;
   }));
-  $("anthropicKey").value = s.anthropicKey;
-  $("openaiKey").value = s.openaiKey;
-  $("geminiKey").value = s.geminiKey;
-  $("localBaseUrl").value = s.localBaseUrl;
-  $("localApiKey").value = s.localApiKey;
   $("autoRun").checked = s.autoRun;
   $("aiEnabled").checked = s.aiEnabled !== false;
   $("jiraHosts").value = s.jiraHosts.join(", ");
@@ -115,60 +54,23 @@ async function load() {
   $("setupCmd").value = setupCommand("setup");
   document.body.classList.add(IS_WIN ? "is-win" : "is-mac");
   document.querySelectorAll(".ext-id").forEach((el) => (el.textContent = chrome.runtime.id));
-  $("itRequest").value = IT_REQUEST;
-  showProvider(s.provider);
 }
 
-$("provider").addEventListener("change", (e) => {
-  showMsg("");
-  showProvider(e.target.value);
-});
-
-$("model").addEventListener("change", () => {
-  models[$("provider").value] = $("model").value;
-});
-
-document.querySelectorAll("[data-preset]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    $("localBaseUrl").value = LOCAL_PRESETS[btn.dataset.preset];
-  });
-});
-
-$("loadModels").addEventListener("click", async () => {
-  const s = formSettings();
-  const problem = missingConfig(s);
-  if (problem) return showMsg(problem.replace(" in Settings (⚙)", ""), true);
-  showMsg("Connecting…");
-  try {
-    if (s.provider === "local") await ensureLocalPermission(s.localBaseUrl);
-    const list = await listModels(s);
-    const keep = $("model").value;
-    resetModelSelect("");
-    if (s.provider === "gemini") ensureModelOption(GEMINI_DEFAULT_MODEL, "Gemini Flash-Lite (latest) · recommended"); // an alias: not always listed
-    list.forEach((m) => ensureModelOption(m.id, m.name === m.id ? m.id : `${m.name} (${m.id})`));
-    $("model").value = [...$("model").options].some((o) => o.value === keep) ? keep : "";
-    showMsg(list.length ? `Connected — ${list.length} models available.` : "Connected, but no models were found.");
-  } catch (e) {
-    showMsg(String(e.message || e), true);
-  }
-});
-
-// A real one-line request with the key and model on the page (saved or not): checks the key, the model and the speed.
+// A real one-line request through the chat picked on the page (saved or not).
 $("testAi").addEventListener("click", async () => {
   const s = { ...(await getSettings()), ...formSettings() };
-  const problem = missingConfig(s);
-  if (problem) return showMsg(problem.replace(" in Settings (⚙)", ""), true);
-  showMsg("Asking the AI…");
+  showMsg(`Asking ${aiChatName(s)} in a minimized window… (if it asks you to sign in, its window comes up)`);
   $("testAi").disabled = true;
   const started = Date.now();
+  aiNoteHook = (t, needsYou) => { if (t && needsYou) showMsg(`⏳ ${t}`); };
   try {
-    if (s.provider === "local") await ensureLocalPermission(s.localBaseUrl);
-    const { text, model } = await generateText(s, { system: "You are a connection test. Answer in at most five words.", messages: [{ role: "user", content: "Say that the connection works." }], maxTokens: 50 });
+    const { text } = await generateText(s, { system: "You are a connection test. Answer in at most five words.", messages: [{ role: "user", content: "Say that the connection works." }] });
     const secs = ((Date.now() - started) / 1000).toFixed(1);
-    showMsg(`✓ ${PROVIDERS[s.provider].label} works: ${model} answered in ${secs} s ("${text.trim().slice(0, 60)}").${$("model").value ? "" : " Auto picked this model."} Click Save to keep these settings.`);
+    showMsg(`✓ ${aiChatName(s)} works: it answered in ${secs} s ("${text.trim().slice(0, 60)}"). Click Save to keep this choice.`);
   } catch (e) {
     showMsg(`✕ ${String(e.message || e)}`, true);
   } finally {
+    aiNoteHook = null;
     $("testAi").disabled = false;
   }
 });
@@ -181,21 +83,15 @@ $("save").addEventListener("click", async () => {
   try {
     // One permission prompt for everything (it must happen directly inside the click handler).
     const origins = hosts.flatMap((h) => [`https://${h}/*`, `http://${h}/*`]);
-    if (s.provider === "local" && s.localBaseUrl) {
-      let u;
-      try { u = new URL(s.localBaseUrl); } catch { throw new Error("Local server URL is not a valid URL."); }
-      if (!["localhost", "127.0.0.1"].includes(u.hostname)) origins.push(`${u.origin}/*`);
-    }
     const nbOrigin = netboxOrigin();
     if (nbOrigin && nbOrigin !== new URL(DEFAULTS.netboxUrl).origin) origins.push(`${nbOrigin}/*`);
     if (origins.length && !(await chrome.permissions.request({ origins }))) {
-      throw new Error("Chrome permission for the Jira host(s) / local server was denied.");
+      throw new Error("Chrome permission for the Jira or NetBox address was denied.");
     }
   } catch (e) {
     return showMsg(String(e.message || e), true);
   }
 
-  models = s.models;
   await chrome.storage.local.set({
     ...s,
     autoRun: $("autoRun").checked,
@@ -219,17 +115,17 @@ $("save").addEventListener("click", async () => {
     privacyHide: Object.fromEntries([...document.querySelectorAll("#privacyKinds input")].map((b) => [b.dataset.kind, b.checked])),
     privacyWords: $("privacyWords").value
   });
-  await chrome.storage.local.remove(["apiKey", "model"]); // v1 settings, now migrated
+  await chrome.storage.local.remove(OLD_AI_SETTINGS); // API keys and models from before 1.36: not used any more
   await chrome.storage.session.clear(); // drop cached analyses so new settings apply
   showMsg("Saved ✓");
 });
 
 // ---------- Backup & restore ----------
-// Settings as a JSON file. API keys and tokens are left out unless ticked, so a file can be shared with the team.
+// Settings as a JSON file. The NetBox token is left out unless ticked, so a file can be shared with the team.
 
 const BACKUP_APP = "lambda-rackside";
 const OLD_BACKUP_APPS = ["lambda-dc-ops-assistant"]; // backup files saved by earlier versions
-const SECRET_SETTINGS = ["anthropicKey", "openaiKey", "geminiKey", "localApiKey", "netboxToken"];
+const SECRET_SETTINGS = ["netboxToken"];
 
 function backupMsg(text, bad = false) {
   $("backupMsg").textContent = text;
@@ -245,7 +141,7 @@ $("exportSettings").addEventListener("click", async () => {
   const name = `rackside-settings-${new Date().toISOString().slice(0, 10)}.json`;
   Object.assign(document.createElement("a"), { href: url, download: name }).click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-  backupMsg(withSecrets ? `Saved ${name} with your API keys: keep it private.` : `Saved ${name} (no API keys or tokens).`);
+  backupMsg(withSecrets ? `Saved ${name} with your NetBox token: keep it private.` : `Saved ${name} (no tokens).`);
 });
 
 $("importSettings").addEventListener("click", () => $("importFile").click());
@@ -264,7 +160,7 @@ $("importFile").addEventListener("change", async (e) => {
     await chrome.storage.local.set(valid);
     await chrome.storage.session.clear(); // drop cached analyses so the new settings apply
     await load();
-    const keys = SECRET_SETTINGS.some((k) => k in valid) ? "including API keys" : "your API keys were kept";
+    const keys = SECRET_SETTINGS.some((k) => k in valid) ? "including the NetBox token" : "your NetBox token was kept";
     backupMsg(`✓ Loaded ${Object.keys(valid).length} settings from ${file.name} (${keys}).`);
   } catch (err) {
     backupMsg(`Couldn't load ${file.name}: ${err.message}.`, true);
@@ -289,15 +185,6 @@ async function showUpdate(force) {
 $("checkUpdate").addEventListener("click", () => showUpdate(true));
 showUpdate(false);
 
-const IT_REQUEST = `Hi IT,
-
-I'm in Datacenter Operations and use Lambda Rackside (our DC Ops Chrome extension) to summarize Jira tickets. Could you please create an API key for me on the company account?
-
-Preferred: Anthropic Claude (console.anthropic.com). OpenAI or Google Gemini also work.
-Use: reading Jira tickets I'm assigned, about 10–50 a day. Ticket text is sent to the provider.
-
-Thanks!`;
-
 function copyButton(btn, getText) {
   btn.addEventListener("click", async () => {
     await navigator.clipboard.writeText(getText());
@@ -307,14 +194,6 @@ function copyButton(btn, getText) {
   });
 }
 copyButton($("copySetup"), () => $("setupCmd").value);
-copyButton($("copyItRequest"), () => $("itRequest").value);
-// "Use Gemini here": switch the provider to Gemini and put the cursor in its key box.
-$("useGemini").addEventListener("click", () => {
-  $("provider").value = "gemini";
-  $("provider").dispatchEvent(new Event("change"));
-  $("geminiKey").scrollIntoView({ block: "center", behavior: "smooth" });
-  $("geminiKey").focus();
-});
 
 $("copyInstall").addEventListener("click", async () => {
   await navigator.clipboard.writeText($("installCmd").value);
@@ -349,7 +228,7 @@ function setupTabs() {
   let saved = "start";
   try { saved = localStorage.getItem("settingsTab") || "start"; } catch {}
   const show = (tab) => {
-    // Its own class, not "hidden": the AI provider boxes toggle "hidden" themselves and would show on every tab.
+    // Its own class, not "hidden", so other show/hide toggles on the page never fight with the tabs.
     for (const el of document.querySelectorAll("[data-group]")) el.classList.toggle("off-tab", el.dataset.group !== tab);
     // The first heading in a tab gets no divider line above it.
     document.querySelectorAll("h2[data-tab]").forEach((h2) => h2.classList.remove("first"));

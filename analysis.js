@@ -238,7 +238,7 @@ function ensurePodcrawlerStep(r) {
 }
 
 // ---------- Basic brief, no AI ----------
-// Used when the AI is switched off, when there's no AI key, or when the AI call fails. Everything comes from
+// Used when the AI is switched off or when the AI request fails. Everything comes from
 // patterns in the ticket: server names, IPs, rack/RU, the job type, comments as history, and a power-down check
 // from plain keywords (the newest matching line wins, and the line is shown so the tech can read it).
 

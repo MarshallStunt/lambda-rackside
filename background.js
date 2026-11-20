@@ -1,6 +1,6 @@
 // Service worker: opens the side panel from the toolbar icon, clears settings of removed features, checks for a
 // new version (toolbar badge + one notification per version), and makes
-// every request the extension sends (Jira, NetBox, the AI APIs, local models) look like a plain API client
+// every request the extension sends itself (Jira, NetBox, the catalog) look like a plain API client
 // instead of a browser: drop the Origin/Referer/Sec-* headers Chrome adds and replace the browser User-Agent.
 importScripts("common.js"); // the update check and badge are shared with the panel and Settings
 
@@ -47,6 +47,8 @@ chrome.runtime.onInstalled.addListener((details) => {
   // Slack direct-message lookup was removed in 1.7.2: forget its saved token, address and member list.
   // 1Password CLI logins were removed in 1.8.0: forget those settings too.
   chrome.storage.local.remove(["slackToken", "slackUrl", "slackDir", "opVault", "opAccount", "opTag", "opFallbackItem", "bmcLogin", "bmcHealthAuto"]);
+  // The AI moved to your browser chat in 1.36.0 (no API key): forget the old keys, models and provider.
+  chrome.storage.local.remove(OLD_AI_SETTINGS);
   // The parts catalog moved to a new sheet in 1.16.0: move anyone still on an old one.
   chrome.storage.local.get("catalogUrl").then(({ catalogUrl }) => {
     if (/14oA5dZCMhyGyqI0yXAniO8rNkANbIh8mtG8NI3dz1n4|1iBI8eWuq0Ks3L6YQb2r8F8kLK4QSoyBt/.test(catalogUrl || "")) chrome.storage.local.remove("catalogUrl");
